@@ -142,12 +142,12 @@ local PViewFrame = Instance.new("Frame")
 PViewFrame.Parent = MainUI
 PViewFrame.Visible = false
 PViewFrame.BorderSizePixel = 0
-PViewFrame.BackgroundColor3 = Color3.fromRGB(36,36,36)
+PViewFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
 PViewFrame.AnchorPoint = Vector2.new(0.5,0.5)
 PViewFrame.Size = UDim2.new(0.34,0,0.45,0)
 PViewFrame.Position = UDim2.new(0.5,0,0.5,0)
 PViewFrame.Name = "PViewFrame"
-PViewFrame.BackgroundTransparency = 0.05
+PViewFrame.BackgroundTransparency = 0.01
 PViewFrame.ZIndex = 5
 
 local IconName = Instance.new("TextLabel")
