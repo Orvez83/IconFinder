@@ -1,4 +1,4 @@
-local SolarIcons = {
+return {
 	["4-k-bold"] = "rbxassetid://101120062438598",
 	["4-k-bold-duotone"] = "rbxassetid://126989059970515",
 	["4-k-broken"] = "rbxassetid://92249598853910",

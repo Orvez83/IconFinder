@@ -1,4 +1,4 @@
-local GravityIcons = {
+return {
 	["abbr-api"] = "rbxassetid://135442589868056",
 	["abbr-ml"] = "rbxassetid://137903102602332",
 	["abbr-ql"] = "rbxassetid://110049046211149",

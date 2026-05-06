@@ -1,4 +1,4 @@
-local SFSymbols = {
+return {
     ["00Circle"] = "rbxassetid://86916810578159",
     ["00CircleFill"] = "rbxassetid://111978393739693",
     ["00Square"] = "rbxassetid://133821271515442",
