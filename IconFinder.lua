@@ -1,20 +1,29 @@
 local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
 
 local PlatformURLs = {
-	["Lucide"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Lucide-Icons.lua",
-	["Gravity"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Gravity-Icons.lua",
-	["Solar"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Solar-Icons.lua",
-	["SFSymbols"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/SFSymbols-Icons.lua"
+	["Lucide"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Lucide.lua",
+	["Gravity"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Gravity.lua",
+	["Solar"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Solar.lua",
+	["SFSymbols"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/SFSymbols.lua"
+}
+
+local PlatformOrder = {
+	"Lucide",
+	"Gravity",
+	"Solar",
+	"SFSymbols"
 }
 
 local CurrentIcons = {}
 local IconObjects = {}
 
 local IconFinder = Instance.new("ScreenGui")
-IconFinder.Parent = CoreGui
+IconFinder.Parent = game:GetService("CoreGui")
 IconFinder.IgnoreGuiInset = true
-IconFinder.ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets
+IconFinder.ScreenInsets = Enum.ScreenInsets.None
+IconFinder.ClipToDeviceSafeArea = true
 IconFinder.Name = "IconFinder"
 IconFinder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -25,7 +34,7 @@ TopBarHolder.BorderSizePixel = 0
 TopBarHolder.BackgroundColor3 = Color3.fromRGB(0,0,0)
 TopBarHolder.AnchorPoint = Vector2.new(1,0)
 TopBarHolder.Size = UDim2.new(0.797,0,0,38)
-TopBarHolder.Position = UDim2.new(1,0,0,16)
+TopBarHolder.Position = UDim2.new(1,0,0,15)
 TopBarHolder.Name = "TopBarHolder"
 TopBarHolder.BackgroundTransparency = 1
 
@@ -79,10 +88,14 @@ MainUI.Parent = IconFinder
 MainUI.BorderSizePixel = 0
 MainUI.BackgroundColor3 = Color3.fromRGB(21,21,21)
 MainUI.AnchorPoint = Vector2.new(0.5,0.5)
-MainUI.Size = UDim2.new(1,0,0.99,0)
+MainUI.Size = UDim2.new(1.112, 0, 1.11, 0)
 MainUI.Position = UDim2.new(0.5,0,0.5,0)
 MainUI.Name = "MainUI"
 MainUI.BackgroundTransparency = 0.03
+
+local UiScale = Instance.new("UIScale")
+UiScale.Scale = 0.90
+UiScale.Parent = MainUI
 
 local SearchBar = Instance.new("Frame")
 SearchBar.Parent = MainUI
@@ -113,8 +126,8 @@ SearchBox.BackgroundColor3 = Color3.fromRGB(255,255,255)
 SearchBox.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
 SearchBox.AnchorPoint = Vector2.new(1,0.5)
 SearchBox.PlaceholderText = "Search Icon..."
-SearchBox.Size = UDim2.new(0.894,0,0.66,0)
-SearchBox.Position = UDim2.new(1,-5,0.5,0)
+SearchBox.Size = UDim2.new(0.9,0,0.66,0)
+SearchBox.Position = UDim2.new(1,-12,0.5,0)
 SearchBox.Text = ""
 SearchBox.BackgroundTransparency = 1
 
@@ -206,11 +219,11 @@ CPIcon.BackgroundTransparency = 1
 CPIcon.Name = "CPIcon"
 CPIcon.Position = UDim2.new(0.5,0,0.5,0)
 
-local UIStroke7 = Instance.new("UIStroke")
-UIStroke7.Parent = CopyID
-UIStroke7.Transparency = 0.93
-UIStroke7.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-UIStroke7.Color = Color3.fromRGB(255,255,255)
+local UIStroke7_PView = Instance.new("UIStroke")
+UIStroke7_PView.Parent = CopyID
+UIStroke7_PView.Transparency = 0.93
+UIStroke7_PView.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+UIStroke7_PView.Color = Color3.fromRGB(255,255,255)
 
 local PreviewIcon = Instance.new("ImageLabel")
 PreviewIcon.Parent = PViewFrame
@@ -281,7 +294,7 @@ IconsCount.BorderSizePixel = 0
 IconsCount.BackgroundColor3 = Color3.fromRGB(255,255,255)
 IconsCount.AnchorPoint = Vector2.new(1,0.5)
 IconsCount.Size = UDim2.new(0,105,0,28)
-IconsCount.Position = UDim2.new(1,-133,0.5,0)
+IconsCount.Position = UDim2.new(1,-135,0.5,0)
 IconsCount.Name = "IconsCount"
 IconsCount.BackgroundTransparency = 0.9
 
@@ -314,7 +327,7 @@ CountLabel.AnchorPoint = Vector2.new(1,0.5)
 CountLabel.Size = UDim2.new(0,69,0,19)
 CountLabel.Text = "0"
 CountLabel.Name = "CountLabel"
-CountLabel.Position = UDim2.new(1,-31,0.5,0)
+CountLabel.Position = UDim2.new(1,-29,0.5,0)
 
 local RefreshBtn = Instance.new("TextButton")
 RefreshBtn.Parent = TopBarUI
@@ -393,7 +406,7 @@ Title.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json",Enum.Fo
 Title.TextColor3 = Color3.fromRGB(246,246,246)
 Title.BackgroundTransparency = 1
 Title.AnchorPoint = Vector2.new(0,0.5)
-Title.Size = UDim2.new(0.1,0,0.65,0)
+Title.Size = UDim2.new(0.2,0,0.65,0)
 Title.Text = "Icons Finder"
 Title.Name = "Title"
 Title.Position = UDim2.new(0,14,0.5,0)
@@ -408,10 +421,10 @@ IconPicker.BorderSizePixel = 0
 IconPicker.BackgroundColor3 = Color3.fromRGB(255,255,255)
 IconPicker.AnchorPoint = Vector2.new(1,0.5)
 IconPicker.BackgroundTransparency = 0.9
-IconPicker.Size = UDim2.new(0,95,0,28)
+IconPicker.Size = UDim2.new(0,98,0,28)
 IconPicker.Text = ""
 IconPicker.Name = "IconPicker"
-IconPicker.Position = UDim2.new(1,-244,0.5,0)
+IconPicker.Position = UDim2.new(1,-250,0.5,0)
 
 local UICorner10 = Instance.new("UICorner")
 UICorner10.Parent = IconPicker
@@ -449,8 +462,8 @@ Container.Visible = false
 Container.BorderSizePixel = 0
 Container.BackgroundColor3 = Color3.fromRGB(36,36,36)
 Container.AnchorPoint = Vector2.new(0.5,1)
-Container.Size = UDim2.new(0,108,0,121)
-Container.Position = UDim2.new(0.5,0,1,128)
+Container.Size = UDim2.new(0,108,0,0)
+Container.Position = UDim2.new(0.5,0,1,0)
 Container.Name = "Container"
 Container.ZIndex = 10
 
@@ -458,74 +471,31 @@ local UICorner11 = Instance.new("UICorner")
 UICorner11.Parent = Container
 UICorner11.CornerRadius = UDim.new(0,14)
 
-local LucideBtn = Instance.new("TextButton")
-LucideBtn.Parent = Container
-LucideBtn.BorderSizePixel = 0
-LucideBtn.TextSize = 18
-LucideBtn.TextColor3 = Color3.fromRGB(231,231,231)
-LucideBtn.BackgroundColor3 = Color3.fromRGB(51,51,51)
-LucideBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
-LucideBtn.AnchorPoint = Vector2.new(0.5,0)
-LucideBtn.BackgroundTransparency = 1
-LucideBtn.Size = UDim2.new(0,103,0,26)
-LucideBtn.Text = "Lucide"
-LucideBtn.Name = "LucideBtn"
-LucideBtn.Position = UDim2.new(0.5,0,0,4)
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = Container
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 3)
+UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local SelectLine = Instance.new("Frame")
-SelectLine.Parent = LucideBtn
-SelectLine.BorderSizePixel = 0
-SelectLine.BackgroundColor3 = Color3.fromRGB(236,236,236)
-SelectLine.AnchorPoint = Vector2.new(0,0.5)
-SelectLine.Size = UDim2.new(0,3,0,16)
-SelectLine.Position = UDim2.new(0,1,0.5,0)
-SelectLine.Name = "SelectLine"
+local UIPaddingContainer = Instance.new("UIPadding")
+UIPaddingContainer.Parent = Container
+UIPaddingContainer.PaddingTop = UDim.new(0, 4)
+UIPaddingContainer.PaddingBottom = UDim.new(0, 4)
 
-local UICorner12 = Instance.new("UICorner")
-UICorner12.Parent = SelectLine
-UICorner12.CornerRadius = UDim.new(1,0)
+local SelectCheck = Instance.new("ImageLabel")
+SelectCheck.Name = "SelectCheck"
+SelectCheck.BackgroundTransparency = 1
+SelectCheck.BorderSizePixel = 0
+SelectCheck.AnchorPoint = Vector2.new(0.5, 0.5)
+SelectCheck.Size = UDim2.new(0.96, 0, 0, 23)
+SelectCheck.Position = UDim2.new(0.5, 0, 0.5, 0)
+SelectCheck.Image = "rbxassetid://80742398186218"
+SelectCheck.ImageColor3 = Color3.fromRGB(236, 236, 236)
+SelectCheck.ImageTransparency = 0.8
 
-local GravityBtn = Instance.new("TextButton")
-GravityBtn.Parent = Container
-GravityBtn.BorderSizePixel = 0
-GravityBtn.TextSize = 18
-GravityBtn.TextColor3 = Color3.fromRGB(231,231,231)
-GravityBtn.BackgroundColor3 = Color3.fromRGB(51,51,51)
-GravityBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
-GravityBtn.AnchorPoint = Vector2.new(0.5,0)
-GravityBtn.BackgroundTransparency = 1
-GravityBtn.Size = UDim2.new(0,103,0,26)
-GravityBtn.Text = "Gravity"
-GravityBtn.Name = "GravityBtn"
-GravityBtn.Position = UDim2.new(0.5,0,0,33)
-
-local SolarBtn = Instance.new("TextButton")
-SolarBtn.Parent = Container
-SolarBtn.BorderSizePixel = 0
-SolarBtn.TextSize = 18
-SolarBtn.TextColor3 = Color3.fromRGB(231,231,231)
-SolarBtn.BackgroundColor3 = Color3.fromRGB(51,51,51)
-SolarBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
-SolarBtn.AnchorPoint = Vector2.new(0.5,1)
-SolarBtn.BackgroundTransparency = 1
-SolarBtn.Size = UDim2.new(0,103,0,26)
-SolarBtn.Text = "Solar"
-SolarBtn.Name = "SolarBtn"
-SolarBtn.Position = UDim2.new(0.5,0,1,-33)
-
-local SFSymbolsBtn = Instance.new("TextButton")
-SFSymbolsBtn.Parent = Container
-SFSymbolsBtn.BorderSizePixel = 0
-SFSymbolsBtn.TextSize = 18
-SFSymbolsBtn.TextColor3 = Color3.fromRGB(231,231,231)
-SFSymbolsBtn.BackgroundColor3 = Color3.fromRGB(51,51,51)
-SFSymbolsBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
-SFSymbolsBtn.AnchorPoint = Vector2.new(0.5,1)
-SFSymbolsBtn.BackgroundTransparency = 1
-SFSymbolsBtn.Size = UDim2.new(0,103,0,26)
-SFSymbolsBtn.Text = "SFSymbols"
-SFSymbolsBtn.Name = "SFSymbolsBtn"
-SFSymbolsBtn.Position = UDim2.new(0.5,0,1,-4)
+local SUICorner = Instance.new("UICorner")
+SUICorner.Parent = SelectCheck
+SUICorner.CornerRadius = UDim.new(1, 0)
 
 local IconList = Instance.new("ScrollingFrame")
 IconList.Parent = MainUI
@@ -539,8 +509,8 @@ IconList.Position = UDim2.new(0.5,0,1,-6)
 IconList.ZIndex = -5
 IconList.ScrollBarThickness = 0
 IconList.BackgroundTransparency = 1
-
-local UserInputService = game:GetService("UserInputService")
+IconList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+IconList.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 local dragging = false
 local dragInput
@@ -611,53 +581,99 @@ local function LoadIcons(platform)
 	PlatformName.Text = platform
 
 	task.spawn(function()
-		local success, rawData = pcall(function()
-			return game:HttpGet(PlatformURLs[platform])
+		local success, result = pcall(function()
+			local rawData = game:HttpGet(PlatformURLs[platform])
+			if not rawData then error("No raw data") end
+			
+			local func = loadstring(rawData)
+			if not func then error("Syntax Error in Raw Data") end
+			
+			return func()
 		end)
 
-		if success and rawData then
-			local func = loadstring(rawData)
-			if func then
-				local result = func()
-				if type(result) == "table" then
-					local sorted = {}
-					for name, id in pairs(result) do
-						table.insert(sorted, {Name = name, ID = id})
-					end
-					table.sort(sorted, function(a, b) return a.Name:lower() < b.Name:lower() end)
-
-					for i, data in ipairs(sorted) do
-						local Holder = Instance.new("Frame")
-						Holder.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
-						Holder.Parent = IconList
-						Instance.new("UICorner", Holder).CornerRadius = UDim.new(0, 12)
-
-						local btn = Instance.new("ImageButton")
-						btn.Size = UDim2.new(0, 40, 0, 40)
-						btn.Position = UDim2.new(0.5, 0, 0.5, 0)
-						btn.AnchorPoint = Vector2.new(0.5, 0.5)
-						btn.BackgroundTransparency = 1
-						btn.Image = (string.find(tostring(data.ID), "rbxassetid://") and tostring(data.ID)) or "rbxassetid://" .. tostring(data.ID)
-						btn.Parent = Holder
-
-						btn.MouseButton1Click:Connect(function()
-							PreviewIcon.Image = btn.Image
-							IconName.Text = data.Name
-							PViewFrame.Visible = true
-						end)
-
-						table.insert(IconObjects, Holder)
-						table.insert(CurrentIcons, {Obj = Holder, Name = data.Name:lower(), ID = data.ID})
-					end
-					CountLabel.Text = tostring(#sorted)
-				end
-			else
-				CountLabel.Text = "Syntax Err"
+		if success and type(result) == "table" then
+			local sorted = {}
+			for name, id in pairs(result) do
+				table.insert(sorted, {Name = name, ID = id})
 			end
+			table.sort(sorted, function(a, b) return a.Name:lower() < b.Name:lower() end)
+
+			for i, data in ipairs(sorted) do
+				local Holder = Instance.new("TextButton")
+				Holder.Text = ""
+				Holder.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
+				Holder.Parent = IconList
+				Instance.new("UICorner", Holder).CornerRadius = UDim.new(0, 12)
+
+				local btn = Instance.new("ImageLabel")
+				btn.BackgroundTransparency = 1
+				btn.Image = (string.find(tostring(data.ID), "rbxassetid://") and tostring(data.ID)) or "rbxassetid://" .. tostring(data.ID)
+				btn.Parent = Holder
+
+				Holder.Size = UDim2.new(0, 60, 0, 60)
+				btn.Size = UDim2.new(0, 40, 0, 40)
+				btn.Position = UDim2.new(0.5, 0, 0.5, 0)
+				btn.AnchorPoint = Vector2.new(0.5, 0.5)
+
+				Holder.MouseButton1Click:Connect(function()
+					PreviewIcon.Image = btn.Image
+					IconName.Text = data.Name
+					PViewFrame.Visible = true
+				end)
+
+				table.insert(IconObjects, Holder)
+				table.insert(CurrentIcons, {Obj = Holder, Name = data.Name:lower(), ID = data.ID})
+			end
+			CountLabel.Text = tostring(#sorted)
 		else
 			CountLabel.Text = "HTTP Err"
 		end
 	end)
+end
+
+local function SetPlatform(name, btn)
+	SelectCheck.Parent = btn
+	Container.Visible = false
+	LoadIcons(name)
+end
+
+local function BuildPlatformMenu()
+	for _, child in ipairs(Container:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+
+	local validCount = 0
+	for orderIndex, platformName in ipairs(PlatformOrder) do
+		if PlatformURLs[platformName] then
+			validCount = validCount + 1
+			local PlatformBtn = Instance.new("TextButton")
+			PlatformBtn.Parent = Container
+			PlatformBtn.BorderSizePixel = 0
+			PlatformBtn.TextSize = 18
+			PlatformBtn.TextColor3 = Color3.fromRGB(231,231,231)
+			PlatformBtn.BackgroundColor3 = Color3.fromRGB(51,51,51)
+			PlatformBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
+			PlatformBtn.BackgroundTransparency = 1
+			PlatformBtn.Size = UDim2.new(0,103,0,26)
+			PlatformBtn.Text = platformName
+			PlatformBtn.Name = platformName .. "Btn"
+			PlatformBtn.LayoutOrder = orderIndex
+
+			if PlatformName.Text == platformName then
+				SelectCheck.Parent = PlatformBtn
+			end
+
+			PlatformBtn.MouseButton1Click:Connect(function()
+				SetPlatform(platformName, PlatformBtn)
+			end)
+		end
+	end
+
+	local totalHeight = (validCount * 26) + ((validCount - 1) * 3) + 8
+	Container.Size = UDim2.new(0, 108, 0, totalHeight)
+	Container.Position = UDim2.new(0.5, 0, 1, totalHeight + 2)
 end
 
 local function UpdateSearch(text)
@@ -676,20 +692,33 @@ SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
 	UpdateSearch(SearchBox.Text)
 end)
 
+local isFocused = false
+
+SearchBar.MouseEnter:Connect(function()
+	if not isFocused then
+		UIStroke7.Transparency = 0.15
+	end
+end)
+
+SearchBar.MouseLeave:Connect(function()
+	if not isFocused then
+		UIStroke7.Transparency = 0.93
+	end
+end)
+
+SearchBox.Focused:Connect(function()
+	isFocused = true
+	UIStroke7.Transparency = 0.15
+end)
+
+SearchBox.FocusLost:Connect(function()
+	isFocused = false
+	UIStroke7.Transparency = 0.93
+end)
+
 IconPicker.MouseButton1Click:Connect(function()
 	Container.Visible = not Container.Visible
 end)
-
-local function SetPlatform(name, btn)
-	SelectLine.Parent = btn
-	Container.Visible = false
-	LoadIcons(name)
-end
-
-LucideBtn.MouseButton1Click:Connect(function() SetPlatform("Lucide", LucideBtn) end)
-GravityBtn.MouseButton1Click:Connect(function() SetPlatform("Gravity", GravityBtn) end)
-SolarBtn.MouseButton1Click:Connect(function() SetPlatform("Solar", SolarBtn) end)
-SFSymbolsBtn.MouseButton1Click:Connect(function() SetPlatform("SFSymbols", SFSymbolsBtn) end)
 
 ClosePView.MouseButton1Click:Connect(function() PViewFrame.Visible = false end)
 
@@ -715,8 +744,5 @@ end)
 DestroyBtn.MouseButton1Click:Connect(function() IconFinder:Destroy() end)
 RefreshBtn.MouseButton1Click:Connect(function() LoadIcons(PlatformName.Text) end)
 
-UIGrid:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	IconList.CanvasSize = UDim2.new(0, 0, 0, UIGrid.AbsoluteContentSize.Y + 20)
-end)
-
+BuildPlatformMenu()
 LoadIcons("Lucide")
