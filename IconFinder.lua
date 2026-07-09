@@ -3,11 +3,52 @@ local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 
 local PlatformURLs = {
-	["Lucide"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Lucide.lua",
-	["Gravity"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Gravity.lua",
-	["Solar"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Solar.lua",
-	["SFSymbols"] = "https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/SFSymbols.lua"
+	["Lucide"] = {
+		"https://cdn.jsdelivr.net/gh/Orvez83/IconFinder@main/Icons/Lucide.lua",
+		"https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Lucide.lua"
+	},
+	["Gravity"] = {
+		"https://cdn.jsdelivr.net/gh/Orvez83/IconFinder@main/Icons/Gravity.lua",
+		"https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Gravity.lua"
+	},
+	["Solar"] = {
+		"https://cdn.jsdelivr.net/gh/Orvez83/IconFinder@main/Icons/Solar.lua",
+		"https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Solar.lua"
+	},
+	["SFSymbols"] = {
+		"https://cdn.jsdelivr.net/gh/Orvez83/IconFinder@main/Icons/SFSymbols.lua",
+		"https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/SFSymbols.lua"
+	}
 }
+
+local IconCache = {}
+
+local function HttpGetWithRetry(urls, maxRetries)
+	maxRetries = maxRetries or 3
+	local lastError = "Unknown error"
+
+	for _, url in ipairs(urls) do
+		for attempt = 1, maxRetries do
+			local success, result = pcall(function()
+				return game:HttpGet(url)
+			end)
+
+			if success then
+				return true, result
+			end
+
+			lastError = tostring(result)
+
+			if lastError:find("429") then
+				task.wait(attempt * 1.5)
+			else
+				break
+			end
+		end
+	end
+
+	return false, lastError
+end
 
 local PlatformOrder = {
 	"Lucide",
@@ -581,15 +622,27 @@ local function LoadIcons(platform)
 	PlatformName.Text = platform
 
 	task.spawn(function()
-		local success, result = pcall(function()
-			local rawData = game:HttpGet(PlatformURLs[platform])
-			if not rawData then error("No raw data") end
-			
-			local func = loadstring(rawData)
-			if not func then error("Syntax Error in Raw Data") end
-			
-			return func()
-		end)
+		local success, result
+
+		if IconCache[platform] then
+			success, result = true, IconCache[platform]
+		else
+			local ok, rawData = HttpGetWithRetry(PlatformURLs[platform])
+
+			if ok then
+				success, result = pcall(function()
+					local func = loadstring(rawData)
+					if not func then error("Syntax Error in Raw Data") end
+					return func()
+				end)
+
+				if success and type(result) == "table" then
+					IconCache[platform] = result
+				end
+			else
+				success, result = false, rawData
+			end
+		end
 
 		if success and type(result) == "table" then
 			local sorted = {}
