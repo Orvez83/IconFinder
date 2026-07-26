@@ -1,6 +1,7 @@
 local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 
 local PlatformURLs = {
 	["Lucide"] = {
@@ -22,6 +23,15 @@ local PlatformURLs = {
 }
 
 local IconCache = {}
+local CurrentCopyMode = "ID"
+local CopyOnPress = false
+local CurrentFilters = {All = true}
+local CurrentSort = "A-Z"
+local MultiSelectMode = false
+local SelectedIcons = {}
+local CurrentAlphabetFilter = nil
+
+local MAX_SETTINGS_HEIGHT = 230
 
 local function HttpGetWithRetry(urls, maxRetries)
 	maxRetries = maxRetries or 3
@@ -62,9 +72,8 @@ local IconObjects = {}
 
 local IconFinder = Instance.new("ScreenGui")
 IconFinder.Parent = game:GetService("CoreGui")
-IconFinder.IgnoreGuiInset = true
 IconFinder.ScreenInsets = Enum.ScreenInsets.None
-IconFinder.ClipToDeviceSafeArea = true
+IconFinder.DisplayOrder = 100000000
 IconFinder.Name = "IconFinder"
 IconFinder.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
@@ -78,10 +87,6 @@ TopBarHolder.Size = UDim2.new(0.797,0,0,38)
 TopBarHolder.Position = UDim2.new(1,0,0,15)
 TopBarHolder.Name = "TopBarHolder"
 TopBarHolder.BackgroundTransparency = 1
-
-local UICorner = Instance.new("UICorner")
-UICorner.Parent = TopBarHolder
-UICorner.CornerRadius = UDim.new(1,0)
 
 local OpenUI = Instance.new("TextButton")
 OpenUI.Parent = TopBarHolder
@@ -105,9 +110,9 @@ OIcon.BackgroundTransparency = 1
 OIcon.Name = "OIcon"
 OIcon.Position = UDim2.new(0,12,0.5,-1)
 
-local UICorner2 = Instance.new("UICorner")
-UICorner2.Parent = OpenUI
-UICorner2.CornerRadius = UDim.new(1,0)
+local OpenCorner = Instance.new("UICorner")
+OpenCorner.Parent = OpenUI
+OpenCorner.CornerRadius = UDim.new(1,0)
 
 local Title2 = Instance.new("TextLabel")
 Title2.Parent = OpenUI
@@ -133,6 +138,7 @@ MainUI.Size = UDim2.new(1.112, 0, 1.11, 0)
 MainUI.Position = UDim2.new(0.5,0,0.5,0)
 MainUI.Name = "MainUI"
 MainUI.BackgroundTransparency = 0.03
+MainUI.ClipsDescendants = true
 
 local UiScale = Instance.new("UIScale")
 UiScale.Scale = 0.90
@@ -172,9 +178,9 @@ SearchBox.Position = UDim2.new(1,-12,0.5,0)
 SearchBox.Text = ""
 SearchBox.BackgroundTransparency = 1
 
-local UICorner3 = Instance.new("UICorner")
-UICorner3.Parent = SearchBar
-UICorner3.CornerRadius = UDim.new(1,0)
+local SbarCorner = Instance.new("UICorner")
+SbarCorner.Parent = SearchBar
+SbarCorner.CornerRadius = UDim.new(1,0)
 
 local SearchIcon = Instance.new("ImageLabel")
 SearchIcon.Parent = SearchBar
@@ -188,9 +194,9 @@ SearchIcon.BackgroundTransparency = 1
 SearchIcon.Name = "SearchIcon"
 SearchIcon.Position = UDim2.new(0,9,0.5,0)
 
-local UICorner4 = Instance.new("UICorner")
-UICorner4.Parent = MainUI
-UICorner4.CornerRadius = UDim.new(0,25)
+local MUICorner = Instance.new("UICorner")
+MUICorner.Parent = MainUI
+MUICorner.CornerRadius = UDim.new(0,25)
 
 local PViewFrame = Instance.new("Frame")
 PViewFrame.Parent = MainUI
@@ -203,6 +209,12 @@ PViewFrame.Position = UDim2.new(0.5,0,0.5,0)
 PViewFrame.Name = "PViewFrame"
 PViewFrame.BackgroundTransparency = 0.01
 PViewFrame.ZIndex = 5
+
+local PViewStroke = Instance.new("UIStroke")
+PViewStroke.Parent = PViewFrame
+PViewStroke.Transparency = 0.93
+PViewStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+PViewStroke.Color = Color3.fromRGB(255,255,255)
 
 local IconName = Instance.new("TextLabel")
 IconName.Parent = PViewFrame
@@ -219,9 +231,9 @@ IconName.Text = "Name"
 IconName.Name = "IconName"
 IconName.Position = UDim2.new(0.5,0,0,83)
 
-local UICorner5 = Instance.new("UICorner")
-UICorner5.Parent = PViewFrame
-UICorner5.CornerRadius = UDim.new(0,20)
+local PViewCorner = Instance.new("UICorner")
+PViewCorner.Parent = PViewFrame
+PViewCorner.CornerRadius = UDim.new(0,20)
 
 local ClosePView = Instance.new("ImageButton")
 ClosePView.Parent = PViewFrame
@@ -245,9 +257,9 @@ CopyID.Text = ""
 CopyID.Name = "CopyID"
 CopyID.Position = UDim2.new(0,12,1,-16)
 
-local UICorner6 = Instance.new("UICorner")
-UICorner6.Parent = CopyID
-UICorner6.CornerRadius = UDim.new(0,15)
+local CopyIDCorner = Instance.new("UICorner")
+CopyIDCorner.Parent = CopyID
+CopyIDCorner.CornerRadius = UDim.new(0,15)
 
 local CPIcon = Instance.new("ImageLabel")
 CPIcon.Parent = CopyID
@@ -260,11 +272,11 @@ CPIcon.BackgroundTransparency = 1
 CPIcon.Name = "CPIcon"
 CPIcon.Position = UDim2.new(0.5,0,0.5,0)
 
-local UIStroke7_PView = Instance.new("UIStroke")
-UIStroke7_PView.Parent = CopyID
-UIStroke7_PView.Transparency = 0.93
-UIStroke7_PView.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-UIStroke7_PView.Color = Color3.fromRGB(255,255,255)
+local CopyIDUIStroke = Instance.new("UIStroke")
+CopyIDUIStroke.Parent = CopyID
+CopyIDUIStroke.Transparency = 0.93
+CopyIDUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+CopyIDUIStroke.Color = Color3.fromRGB(255,255,255)
 
 local PreviewIcon = Instance.new("ImageLabel")
 PreviewIcon.Parent = PViewFrame
@@ -288,9 +300,9 @@ CopyName.Text = ""
 CopyName.Name = "CopyName"
 CopyName.Position = UDim2.new(1,-12,1,-16)
 
-local UICorner7 = Instance.new("UICorner")
-UICorner7.Parent = CopyName
-UICorner7.CornerRadius = UDim.new(0,15)
+local CopyNCorner = Instance.new("UICorner")
+CopyNCorner.Parent = CopyName
+CopyNCorner.CornerRadius = UDim.new(0,15)
 
 local CNIcon = Instance.new("ImageLabel")
 CNIcon.Parent = CopyName
@@ -303,11 +315,11 @@ CNIcon.BackgroundTransparency = 1
 CNIcon.Name = "CNIcon"
 CNIcon.Position = UDim2.new(0.5,0,0.5,0)
 
-local UIStroke9 = Instance.new("UIStroke")
-UIStroke9.Parent = CopyName
-UIStroke9.Transparency = 0.93
-UIStroke9.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-UIStroke9.Color = Color3.fromRGB(255,255,255)
+local CopyNameStroke9 = Instance.new("UIStroke")
+CopyNameStroke9.Parent = CopyName
+CopyNameStroke9.Transparency = 0.93
+CopyNameStroke9.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+CopyNameStroke9.Color = Color3.fromRGB(255,255,255)
 
 local TopBarUI = Instance.new("Frame")
 TopBarUI.Parent = MainUI
@@ -339,9 +351,9 @@ IconsCount.Position = UDim2.new(1,-135,0.5,0)
 IconsCount.Name = "IconsCount"
 IconsCount.BackgroundTransparency = 0.9
 
-local UICorner8 = Instance.new("UICorner")
-UICorner8.Parent = IconsCount
-UICorner8.CornerRadius = UDim.new(0,10)
+local IcountCorner = Instance.new("UICorner")
+IcountCorner.Parent = IconsCount
+IcountCorner.CornerRadius = UDim.new(0,10)
 
 local Icon = Instance.new("ImageLabel")
 Icon.Parent = IconsCount
@@ -436,6 +448,64 @@ DIcon.BackgroundTransparency = 1
 DIcon.Name = "DIcon"
 DIcon.Position = UDim2.new(0.5,0,0.5,0)
 
+local SettingsBtn = Instance.new("TextButton")
+SettingsBtn.Parent = TopBarUI
+SettingsBtn.BorderSizePixel = 0
+SettingsBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+SettingsBtn.AnchorPoint = Vector2.new(1,0.5)
+SettingsBtn.BackgroundTransparency = 0.9
+SettingsBtn.Size = UDim2.new(0,47,0,28)
+SettingsBtn.Text = ""
+SettingsBtn.Name = "SettingsBtn"
+SettingsBtn.Position = UDim2.new(1,-360,0.5,0)
+
+local SettingsCorner = Instance.new("UICorner")
+SettingsCorner.Parent = SettingsBtn
+SettingsCorner.CornerRadius = UDim.new(0,10)
+
+local SIcon = Instance.new("ImageLabel")
+SIcon.Parent = SettingsBtn
+SIcon.BorderSizePixel = 0
+SIcon.BackgroundColor3 = Color3.fromRGB(255,255,255)
+SIcon.AnchorPoint = Vector2.new(0.5,0.5)
+SIcon.Image = "rbxassetid://140704441124047"
+SIcon.Size = UDim2.new(0,18,0,18)
+SIcon.BackgroundTransparency = 1
+SIcon.Name = "SIcon"
+SIcon.Position = UDim2.new(0.5,0,0.5,0)
+
+local SettingsMenu = Instance.new("ScrollingFrame")
+SettingsMenu.Parent = SettingsBtn
+SettingsMenu.Visible = false
+SettingsMenu.BorderSizePixel = 0
+SettingsMenu.BackgroundColor3 = Color3.fromRGB(36,36,36)
+SettingsMenu.AnchorPoint = Vector2.new(0.5,1)
+SettingsMenu.Size = UDim2.new(0,150,0,0)
+SettingsMenu.Position = UDim2.new(0.5,0,1,0)
+SettingsMenu.Name = "SettingsMenu"
+SettingsMenu.ZIndex = 20
+SettingsMenu.ScrollBarThickness = 1.8
+SettingsMenu.ScrollBarImageColor3 = Color3.fromRGB(205,205,205)
+SettingsMenu.ScrollingDirection = Enum.ScrollingDirection.Y
+SettingsMenu.AutomaticCanvasSize = Enum.AutomaticSize.Y
+SettingsMenu.CanvasSize = UDim2.new(0,0,0,0)
+SettingsMenu.ClipsDescendants = true
+
+local SettingsMenuCorner = Instance.new("UICorner")
+SettingsMenuCorner.Parent = SettingsMenu
+SettingsMenuCorner.CornerRadius = UDim.new(0,14)
+
+local SettingsMenuLayout = Instance.new("UIListLayout")
+SettingsMenuLayout.Parent = SettingsMenu
+SettingsMenuLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SettingsMenuLayout.Padding = UDim.new(0, 3)
+SettingsMenuLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local SettingsMenuPadding = Instance.new("UIPadding")
+SettingsMenuPadding.Parent = SettingsMenu
+SettingsMenuPadding.PaddingTop = UDim.new(0, 6)
+SettingsMenuPadding.PaddingBottom = UDim.new(0, 6)
+
 local Title = Instance.new("TextLabel")
 Title.Parent = TopBarUI
 Title.TextWrapped = true
@@ -452,9 +522,9 @@ Title.Text = "Icons Finder"
 Title.Name = "Title"
 Title.Position = UDim2.new(0,14,0.5,0)
 
-local UICorner9 = Instance.new("UICorner")
-UICorner9.Parent = TopBarUI
-UICorner9.CornerRadius = UDim.new(0,25)
+local TbCorner = Instance.new("UICorner")
+TbCorner.Parent = TopBarUI
+TbCorner.CornerRadius = UDim.new(0,25)
 
 local IconPicker = Instance.new("TextButton")
 IconPicker.Parent = TopBarUI
@@ -467,9 +537,9 @@ IconPicker.Text = ""
 IconPicker.Name = "IconPicker"
 IconPicker.Position = UDim2.new(1,-250,0.5,0)
 
-local UICorner10 = Instance.new("UICorner")
-UICorner10.Parent = IconPicker
-UICorner10.CornerRadius = UDim.new(0,10)
+local IconPCorner = Instance.new("UICorner")
+IconPCorner.Parent = IconPicker
+IconPCorner.CornerRadius = UDim.new(0,10)
 
 local ChevIcon = Instance.new("ImageLabel")
 ChevIcon.Parent = IconPicker
@@ -508,9 +578,9 @@ Container.Position = UDim2.new(0.5,0,1,0)
 Container.Name = "Container"
 Container.ZIndex = 10
 
-local UICorner11 = Instance.new("UICorner")
-UICorner11.Parent = Container
-UICorner11.CornerRadius = UDim.new(0,14)
+local ContainerCorner = Instance.new("UICorner")
+ContainerCorner.Parent = Container
+ContainerCorner.CornerRadius = UDim.new(0,14)
 
 local UIListLayout = Instance.new("UIListLayout")
 UIListLayout.Parent = Container
@@ -598,9 +668,9 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
-local UICorner13 = Instance.new("UICorner")
-UICorner13.Parent = IconList
-UICorner13.CornerRadius = UDim.new(0,18)
+local IListCorner = Instance.new("UICorner")
+IListCorner.Parent = IconList
+IListCorner.CornerRadius = UDim.new(0,18)
 
 local UIGrid = Instance.new("UIGridLayout")
 UIGrid.Parent = IconList
@@ -614,10 +684,424 @@ UIPadding.Parent = IconList
 UIPadding.PaddingTop = UDim.new(0, 10)
 UIPadding.PaddingBottom = UDim.new(0, 10)
 
+local AlphabetHandle = Instance.new("TextButton")
+AlphabetHandle.Parent = MainUI
+AlphabetHandle.Text = ""
+AlphabetHandle.AutoButtonColor = false
+AlphabetHandle.BorderSizePixel = 0
+AlphabetHandle.BackgroundColor3 = Color3.fromRGB(31,31,31)
+AlphabetHandle.BackgroundTransparency = 1
+AlphabetHandle.AnchorPoint = Vector2.new(0,0.5)
+AlphabetHandle.Size = UDim2.new(0,25,0,240)
+AlphabetHandle.Position = UDim2.new(0,0,0.5,0)
+AlphabetHandle.Name = "AlphabetHandle"
+AlphabetHandle.ZIndex = 6
+
+local AlphabetSidebar = Instance.new("Frame")
+AlphabetSidebar.Parent = MainUI
+AlphabetSidebar.BorderSizePixel = 0
+AlphabetSidebar.BackgroundColor3 = Color3.fromRGB(30,30,30)
+AlphabetSidebar.BackgroundTransparency = 0.01
+AlphabetSidebar.AnchorPoint = Vector2.new(0,0.5)
+AlphabetSidebar.Size = UDim2.new(0,150,0.873,0)
+AlphabetSidebar.Position = UDim2.new(0,-165,0.5,0)
+AlphabetSidebar.Name = "AlphabetSidebar"
+AlphabetSidebar.ZIndex = 8
+AlphabetSidebar.ClipsDescendants = false
+
+local ASideStroke = Instance.new("UIStroke")
+ASideStroke.Parent = AlphabetSidebar
+ASideStroke.Transparency = 0.93
+ASideStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+ASideStroke.Color = Color3.fromRGB(255,255,255)
+
+local AlphabetSidebarCorner = Instance.new("UICorner")
+AlphabetSidebarCorner.Parent = AlphabetSidebar
+AlphabetSidebarCorner.CornerRadius = UDim.new(0,16)
+
+local CloseSidebarBtn = Instance.new("ImageButton")
+CloseSidebarBtn.Parent = AlphabetSidebar
+CloseSidebarBtn.BorderSizePixel = 0
+CloseSidebarBtn.BackgroundTransparency = 1
+CloseSidebarBtn.AnchorPoint = Vector2.new(1,0.5)
+CloseSidebarBtn.Position = UDim2.new(1,27,0.5,0)
+CloseSidebarBtn.Size = UDim2.new(0,20,0,26)
+CloseSidebarBtn.Image = "rbxassetid://73780377692148"
+CloseSidebarBtn.ImageColor3 = Color3.fromRGB(220,220,220)
+CloseSidebarBtn.Name = "CloseSidebarBtn"
+CloseSidebarBtn.ZIndex = 10
+
+local CloseSidebarCorner = Instance.new("UICorner")
+CloseSidebarCorner.Parent = CloseSidebarBtn
+CloseSidebarCorner.CornerRadius = UDim.new(0,8)
+
+local AllRowBtn = Instance.new("TextButton")
+AllRowBtn.Parent = AlphabetSidebar
+AllRowBtn.BorderSizePixel = 0
+AllRowBtn.BackgroundTransparency = 1
+AllRowBtn.Text = ""
+AllRowBtn.AnchorPoint = Vector2.new(0,0)
+AllRowBtn.Position = UDim2.new(0,10,0,10)
+AllRowBtn.Size = UDim2.new(1,-20,0,24)
+AllRowBtn.Name = "AllRowBtn"
+AllRowBtn.ZIndex = 9
+
+local AllRowLabel = Instance.new("TextLabel")
+AllRowLabel.Parent = AllRowBtn
+AllRowLabel.BackgroundTransparency = 1
+AllRowLabel.Size = UDim2.new(1,0,1,0)
+AllRowLabel.TextXAlignment = Enum.TextXAlignment.Left
+AllRowLabel.Text = "All"
+AllRowLabel.TextColor3 = Color3.fromRGB(255,255,255)
+AllRowLabel.TextSize = 16
+AllRowLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+AllRowLabel.Name = "AllRowLabel"
+AllRowLabel.ZIndex = 9
+
+local AllRowQuantity = Instance.new("TextLabel")
+AllRowQuantity.Parent = AllRowBtn
+AllRowQuantity.BackgroundTransparency = 1
+AllRowQuantity.Size = UDim2.new(1,0,1,0)
+AllRowQuantity.TextXAlignment = Enum.TextXAlignment.Right
+AllRowQuantity.Text = "0"
+AllRowQuantity.TextColor3 = Color3.fromRGB(170,170,170)
+AllRowQuantity.TextSize = 14
+AllRowQuantity.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+AllRowQuantity.Name = "AllRowQuantity"
+AllRowQuantity.ZIndex = 9
+
+local AlphabetHeader = Instance.new("TextLabel")
+AlphabetHeader.Parent = AlphabetSidebar
+AlphabetHeader.BackgroundTransparency = 1
+AlphabetHeader.Position = UDim2.new(0,10,0,40)
+AlphabetHeader.Size = UDim2.new(1,-20,0,18)
+AlphabetHeader.Text = "Alphabetical"
+AlphabetHeader.TextXAlignment = Enum.TextXAlignment.Left
+AlphabetHeader.TextColor3 = Color3.fromRGB(160,160,160)
+AlphabetHeader.TextSize = 13
+AlphabetHeader.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+AlphabetHeader.Name = "AlphabetHeader"
+AlphabetHeader.ZIndex = 9
+
+local AlphabetList = Instance.new("ScrollingFrame")
+AlphabetList.Parent = AlphabetSidebar
+AlphabetList.BorderSizePixel = 0
+AlphabetList.BackgroundTransparency = 1
+AlphabetList.Position = UDim2.new(0,10,0,64)
+AlphabetList.Size = UDim2.new(1,-20,1,-74)
+AlphabetList.ScrollBarThickness = 3
+AlphabetList.ScrollBarImageColor3 = Color3.fromRGB(200,200,200)
+AlphabetList.CanvasSize = UDim2.new(0,0,0,0)
+AlphabetList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+AlphabetList.Name = "AlphabetList"
+AlphabetList.ZIndex = 9
+
+local AlphabetListLayout = Instance.new("UIListLayout")
+AlphabetListLayout.Parent = AlphabetList
+AlphabetListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+AlphabetListLayout.Padding = UDim.new(0,2)
+
+local function ProcessFiltersAndSort()
+	local query = SearchBox.Text:lower():gsub("%s+", "")
+	local visibleIcons = {}
+
+	for _, item in ipairs(CurrentIcons) do
+		local iconName = item.Name:lower():gsub("%s+", "")
+		local matchesSearch = (query == "") or (iconName:find(query, 1, true) ~= nil)
+		local matchesFilter = false
+
+		if CurrentFilters["All"] then
+			matchesFilter = true
+		else
+			if CurrentFilters["Fill/Bold"] and (iconName:find("fill", 1, true) ~= nil or iconName:find("bold", 1, true) ~= nil) then
+				matchesFilter = true
+			end
+			if CurrentFilters["Square"] and iconName:find("square", 1, true) ~= nil then
+				matchesFilter = true
+			end
+			if CurrentFilters["Circle"] and iconName:find("circle", 1, true) ~= nil then
+				matchesFilter = true
+			end
+			if CurrentFilters["Triangle"] and iconName:find("triangle", 1, true) ~= nil then
+				matchesFilter = true
+			end
+		end
+
+		local matchesAlpha = true
+		if CurrentAlphabetFilter then
+			local firstChar = string.sub(iconName, 1, 1):upper()
+			matchesAlpha = (firstChar == CurrentAlphabetFilter)
+		end
+
+		if matchesSearch and matchesFilter and matchesAlpha then
+			item.Obj.Visible = true
+			table.insert(visibleIcons, item)
+		else
+			item.Obj.Visible = false
+		end
+	end
+
+	if CurrentSort == "Z-A" then
+		table.sort(visibleIcons, function(a, b) return a.Name > b.Name end)
+	else
+		table.sort(visibleIcons, function(a, b) return a.Name < b.Name end)
+	end
+
+	for i, item in ipairs(visibleIcons) do
+		item.Obj.LayoutOrder = i
+	end
+end
+
+local function ToggleFilter(name)
+	if name == "All" then
+		CurrentFilters = {All = true}
+	else
+		if CurrentFilters["All"] then
+			CurrentFilters = {}
+		end
+
+		if CurrentFilters[name] then
+			CurrentFilters[name] = nil
+		else
+			CurrentFilters[name] = true
+		end
+
+		local any = false
+		for _ in pairs(CurrentFilters) do
+			any = true
+			break
+		end
+
+		if not any then
+			CurrentFilters = {All = true}
+		end
+	end
+end
+
+local function SetSort(mode)
+	CurrentSort = mode
+end
+
+local function SetCopyMode(mode)
+	CurrentCopyMode = mode
+end
+
+local function ToggleCopyOnPress()
+	CopyOnPress = not CopyOnPress
+end
+
+local function FormatClipboardOutput(id, name)
+	local pureId = tostring(id):match("%d+$") or tostring(id)
+	if CurrentCopyMode == "ID" then
+		return pureId
+	elseif CurrentCopyMode == "rbxassetid://ID" then
+		return "rbxassetid://" .. pureId
+	end
+	return pureId
+end
+
+local function GetLetterCounts()
+	local counts = {}
+	for i = 65, 90 do
+		counts[string.char(i)] = 0
+	end
+	local totalCount = 0
+	for _, item in ipairs(CurrentIcons) do
+		local iconName = item.Name
+		local matchesFilter = false
+		if CurrentFilters["All"] then
+			matchesFilter = true
+		else
+			if CurrentFilters["Fill/Bold"] and (iconName:find("fill", 1, true) ~= nil or iconName:find("bold", 1, true) ~= nil) then
+				matchesFilter = true
+			end
+			if CurrentFilters["Square"] and iconName:find("square", 1, true) ~= nil then
+				matchesFilter = true
+			end
+			if CurrentFilters["Circle"] and iconName:find("circle", 1, true) ~= nil then
+				matchesFilter = true
+			end
+			if CurrentFilters["Triangle"] and iconName:find("triangle", 1, true) ~= nil then
+				matchesFilter = true
+			end
+		end
+
+		if matchesFilter then
+			totalCount = totalCount + 1
+			local firstChar = string.sub(iconName, 1, 1):upper()
+			if counts[firstChar] ~= nil then
+				counts[firstChar] = counts[firstChar] + 1
+			end
+		end
+	end
+	return counts, totalCount
+end
+
+local function BuildAlphabetSidebar()
+	for _, child in ipairs(AlphabetList:GetChildren()) do
+		if child:IsA("TextButton") then
+			child:Destroy()
+		end
+	end
+
+	local counts, totalCount = GetLetterCounts()
+
+	AllRowQuantity.Text = tostring(totalCount)
+	AllRowLabel.TextColor3 = (CurrentAlphabetFilter == nil) and Color3.fromRGB(255,255,255) or Color3.fromRGB(190,190,190)
+
+	for i = 65, 90 do
+		local letter = string.char(i)
+		local row = Instance.new("TextButton")
+		row.BorderSizePixel = 0
+		row.BackgroundTransparency = 1
+		row.Text = ""
+		row.Size = UDim2.new(1, 0, 0, 24)
+		row.LayoutOrder = i
+		row.Name = letter .. "Row"
+		row.Parent = AlphabetList
+
+		local bar = Instance.new("Frame")
+		bar.Parent = row
+		bar.BorderSizePixel = 0
+		bar.AnchorPoint = Vector2.new(0, 0.5)
+		bar.Position = UDim2.new(0, 0, 0.5, 0)
+		bar.Size = UDim2.new(0, 2, 0, 16)
+		bar.BackgroundColor3 = (CurrentAlphabetFilter == letter) and Color3.fromRGB(255,255,255) or Color3.fromRGB(85,85,85)
+		bar.Name = "Bar"
+
+        local BarCorner = Instance.new("UICorner")
+        BarCorner.Parent = bar
+        BarCorner.CornerRadius = UDim.new(1,0)
+
+		local letterLabel = Instance.new("TextLabel")
+		letterLabel.Parent = row
+		letterLabel.BackgroundTransparency = 1
+		letterLabel.Position = UDim2.new(0, 10, 0, 0)
+		letterLabel.Size = UDim2.new(0.5, 0, 1, 0)
+		letterLabel.TextXAlignment = Enum.TextXAlignment.Left
+		letterLabel.Text = letter
+		letterLabel.TextSize = 15
+		letterLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", (CurrentAlphabetFilter == letter) and Enum.FontWeight.Bold or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		letterLabel.TextColor3 = (CurrentAlphabetFilter == letter) and Color3.fromRGB(255,255,255) or Color3.fromRGB(210,210,210)
+		letterLabel.Name = "LetterLabel"
+
+		local quantityLabel = Instance.new("TextLabel")
+		quantityLabel.Parent = row
+		quantityLabel.BackgroundTransparency = 1
+		quantityLabel.Position = UDim2.new(0.5, 0, 0, 0)
+		quantityLabel.Size = UDim2.new(0.5, -6, 1, 0)
+		quantityLabel.TextXAlignment = Enum.TextXAlignment.Right
+		quantityLabel.Text = tostring(counts[letter])
+		quantityLabel.TextSize = 13
+		quantityLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		quantityLabel.TextColor3 = Color3.fromRGB(160,160,160)
+		quantityLabel.Name = "QuantityLabel"
+
+		row.MouseButton1Click:Connect(function()
+			if CurrentAlphabetFilter == letter then
+				CurrentAlphabetFilter = nil
+			else
+				CurrentAlphabetFilter = letter
+			end
+			ProcessFiltersAndSort()
+			BuildAlphabetSidebar()
+		end)
+	end
+end
+
+local function SelectAlphabet(letter)
+	if letter == nil then
+		CurrentAlphabetFilter = nil
+	elseif CurrentAlphabetFilter == letter then
+		CurrentAlphabetFilter = nil
+	else
+		CurrentAlphabetFilter = letter
+	end
+	ProcessFiltersAndSort()
+	BuildAlphabetSidebar()
+end
+
+local sidebarOpen = false
+
+local function OpenAlphabetSidebar()
+	if sidebarOpen then return end
+	sidebarOpen = true
+	AlphabetHandle.Visible = false
+	local tween = TweenService:Create(AlphabetSidebar, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0,12,0.5,0)})
+	tween:Play()
+end
+
+local function CloseAlphabetSidebar()
+	if not sidebarOpen then return end
+	sidebarOpen = false
+	local tween = TweenService:Create(AlphabetSidebar, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(0,-160,0.5,0)})
+	tween:Play()
+	AlphabetHandle.Visible = true
+end
+
+CloseSidebarBtn.MouseButton1Click:Connect(function()
+	CloseAlphabetSidebar()
+end)
+
+AllRowBtn.MouseButton1Click:Connect(function()
+	SelectAlphabet(nil)
+end)
+
+local alphaDragging = false
+local alphaDragStartX = 0
+
+AlphabetHandle.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		alphaDragging = true
+		alphaDragStartX = input.Position.X
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if alphaDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local deltaX = input.Position.X - alphaDragStartX
+		if deltaX > 30 then
+			alphaDragging = false
+			OpenAlphabetSidebar()
+		end
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		alphaDragging = false
+	end
+end)
+
+local function HandleIconClick(data, btn, Holder)
+	local idStr = (string.find(tostring(data.ID), "rbxassetid://") and tostring(data.ID)) or "rbxassetid://" .. tostring(data.ID)
+
+	if CopyOnPress then
+		setclipboard(FormatClipboardOutput(data.ID, data.Name))
+		return
+	end
+
+	if MultiSelectMode then
+		if SelectedIcons[data.ID] then
+			SelectedIcons[data.ID] = nil
+			Holder.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
+		else
+			SelectedIcons[data.ID] = {Name = data.Name, ID = data.ID, Image = idStr}
+			Holder.BackgroundColor3 = Color3.fromRGB(56, 56, 56)
+		end
+	else
+		PreviewIcon.Image = idStr
+		IconName.Text = data.Name
+		PViewFrame.Visible = true
+	end
+end
+
 local function LoadIcons(platform)
 	for _, obj in pairs(IconObjects) do obj:Destroy() end
 	IconObjects = {}
 	CurrentIcons = {}
+	SelectedIcons = {}
+	CurrentAlphabetFilter = nil
 	CountLabel.Text = "Loading..."
 	PlatformName.Text = platform
 
@@ -669,18 +1153,19 @@ local function LoadIcons(platform)
 				btn.AnchorPoint = Vector2.new(0.5, 0.5)
 
 				Holder.MouseButton1Click:Connect(function()
-					PreviewIcon.Image = btn.Image
-					IconName.Text = data.Name
-					PViewFrame.Visible = true
+					HandleIconClick(data, btn, Holder)
 				end)
 
 				table.insert(IconObjects, Holder)
 				table.insert(CurrentIcons, {Obj = Holder, Name = data.Name:lower(), ID = data.ID})
 			end
 			CountLabel.Text = tostring(#sorted)
+			ProcessFiltersAndSort()
 		else
 			CountLabel.Text = "HTTP Err"
 		end
+
+		BuildAlphabetSidebar()
 	end)
 end
 
@@ -729,20 +1214,116 @@ local function BuildPlatformMenu()
 	Container.Position = UDim2.new(0.5, 0, 1, totalHeight + 2)
 end
 
-local function UpdateSearch(text)
-	local query = text:lower():gsub("%s+", "")
-	for _, item in ipairs(CurrentIcons) do
-		local iconName = item.Name:lower():gsub("%s+", "")
-		if query == "" then
-			item.Obj.Visible = true
-		else
-			item.Obj.Visible = iconName:find(query, 1, true) ~= nil
+local function BuildSettingsMenu()
+	for _, child in ipairs(SettingsMenu:GetChildren()) do
+		if child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel") then
+			child:Destroy()
 		end
 	end
+
+	local items = {
+		{Type = "Label", Text = "Copy Mode", Icon = "rbxassetid://113618379616952"},
+		{Type = "Button", Text = "ID", Action = function() SetCopyMode("ID") BuildSettingsMenu() end, Checked = (CurrentCopyMode == "ID")},
+		{Type = "Button", Text = "rbxassetid://ID", Action = function() SetCopyMode("rbxassetid://ID") BuildSettingsMenu() end, Checked = (CurrentCopyMode == "rbxassetid://ID")},
+		{Type = "Button", Text = "Copy on Press", Action = function() ToggleCopyOnPress() BuildSettingsMenu() end, Checked = CopyOnPress},
+		{Type = "Divider"},
+		{Type = "Label", Text = "Filter", Icon = "rbxassetid://96385120752336"},
+		{Type = "Button", Text = "All", Action = function() ToggleFilter("All") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["All"] == true)},
+		{Type = "Button", Text = "Fill/Bold", Action = function() ToggleFilter("Fill/Bold") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["Fill/Bold"] == true)},
+		{Type = "Button", Text = "Square", Action = function() ToggleFilter("Square") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["Square"] == true)},
+		{Type = "Button", Text = "Circle", Action = function() ToggleFilter("Circle") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["Circle"] == true)},
+		{Type = "Button", Text = "Triangle", Action = function() ToggleFilter("Triangle") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["Triangle"] == true)},
+		{Type = "Divider"},
+		{Type = "Label", Text = "Sort", Icon = "rbxassetid://85780258549577"},
+		{Type = "Button", Text = "A-Z", Action = function() SetSort("A-Z") ProcessFiltersAndSort() BuildSettingsMenu() end, Checked = (CurrentSort == "A-Z")},
+		{Type = "Button", Text = "Z-A", Action = function() SetSort("Z-A") ProcessFiltersAndSort() BuildSettingsMenu() end, Checked = (CurrentSort == "Z-A")}
+	}
+
+	local totalHeight = 12
+	local layoutOrder = 1
+
+	for _, item in ipairs(items) do
+		if item.Type == "Label" then
+			local container = Instance.new("Frame")
+			container.Size = UDim2.new(0, 140, 0, 24)
+			container.BackgroundTransparency = 1
+			container.LayoutOrder = layoutOrder
+			container.Parent = SettingsMenu
+
+			local img = Instance.new("ImageLabel")
+			img.Size = UDim2.new(0, 16, 0, 16)
+			img.Position = UDim2.new(0, 6, 0.5, 0)
+			img.AnchorPoint = Vector2.new(0, 0.5)
+			img.BackgroundTransparency = 1
+			img.Image = item.Icon
+			img.ImageColor3 = Color3.fromRGB(200, 200, 200)
+			img.Parent = container
+
+			local lbl = Instance.new("TextLabel")
+			lbl.Size = UDim2.new(1, -28, 1, 0)
+			lbl.Position = UDim2.new(0, 26, 0, 0)
+			lbl.BackgroundTransparency = 1
+			lbl.Text = item.Text
+			lbl.TextColor3 = Color3.fromRGB(160, 160, 160)
+			lbl.TextSize = 14
+			lbl.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+			lbl.TextXAlignment = Enum.TextXAlignment.Left
+			lbl.Parent = container
+
+			totalHeight = totalHeight + 27
+		elseif item.Type == "Button" then
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(0, 138, 0, 24)
+			btn.BackgroundTransparency = 1
+			btn.Text = "  " .. item.Text
+			btn.TextColor3 = item.Checked and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(210, 210, 210)
+			btn.TextSize = 14
+			btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", item.Checked and Enum.FontWeight.Bold or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+			btn.TextXAlignment = Enum.TextXAlignment.Left
+			btn.LayoutOrder = layoutOrder
+			btn.Parent = SettingsMenu
+
+			local chk = Instance.new("ImageLabel")
+			chk.Size = UDim2.new(1.03, 0, 0, 18)
+			chk.Position = UDim2.new(0.5, 0, 0.5, 0)
+			chk.AnchorPoint = Vector2.new(0.5, 0.5)
+			chk.BackgroundTransparency = 1
+			chk.ImageTransparency = 0.75
+			chk.Image = "rbxassetid://80742398186218"
+			chk.ImageColor3 = Color3.fromRGB(255, 255, 255)
+			chk.Visible = item.Checked
+			chk.Parent = btn
+
+			local chkCorner = Instance.new("UICorner")
+			chkCorner.CornerRadius = UDim.new(0, 5)
+			chkCorner.Parent = chk
+
+			local itemCorner = Instance.new("UICorner")
+			itemCorner.CornerRadius = UDim.new(0, 6)
+			itemCorner.Parent = btn
+
+			btn.MouseButton1Click:Connect(item.Action)
+			totalHeight = totalHeight + 27
+		elseif item.Type == "Divider" then
+			local div = Instance.new("Frame")
+			div.Size = UDim2.new(0, 130, 0, 1)
+			div.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			div.BackgroundTransparency = 0.8
+			div.BorderSizePixel = 0
+			div.LayoutOrder = layoutOrder
+			div.Parent = SettingsMenu
+			totalHeight = totalHeight + 4
+		end
+		layoutOrder = layoutOrder + 1
+	end
+
+	local displayHeight = math.min(totalHeight, MAX_SETTINGS_HEIGHT)
+	SettingsMenu.Size = UDim2.new(0, 150, 0, displayHeight)
+	SettingsMenu.Position = UDim2.new(0.5, 0, 1, displayHeight + 2)
 end
 
 SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-	UpdateSearch(SearchBox.Text)
+	ProcessFiltersAndSort()
 end)
 
 local isFocused = false
@@ -771,13 +1352,21 @@ end)
 
 IconPicker.MouseButton1Click:Connect(function()
 	Container.Visible = not Container.Visible
+	SettingsMenu.Visible = false
+end)
+
+SettingsBtn.MouseButton1Click:Connect(function()
+	SettingsMenu.Visible = not SettingsMenu.Visible
+	Container.Visible = false
 end)
 
 ClosePView.MouseButton1Click:Connect(function() PViewFrame.Visible = false end)
 
 CopyID.MouseButton1Click:Connect(function()
 	local id = PreviewIcon.Image:match("%d+$")
-	if id then setclipboard(id) end
+	if id then 
+		setclipboard(FormatClipboardOutput(id, IconName.Text)) 
+	end
 end)
 
 CopyName.MouseButton1Click:Connect(function()
@@ -795,7 +1384,30 @@ OpenUI.MouseButton1Click:Connect(function()
 end)
 
 DestroyBtn.MouseButton1Click:Connect(function() IconFinder:Destroy() end)
-RefreshBtn.MouseButton1Click:Connect(function() LoadIcons(PlatformName.Text) end)
+
+local refreshSpinning = false
+RefreshBtn.MouseButton1Click:Connect(function()
+	LoadIcons(PlatformName.Text)
+
+	if refreshSpinning then return end
+	refreshSpinning = true
+
+	local targetRotation = RIcon.Rotation + 360
+	local spinTween = TweenService:Create(
+		RIcon,
+		TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{Rotation = targetRotation}
+	)
+
+	spinTween.Completed:Connect(function()
+		RIcon.Rotation = targetRotation % 360
+		refreshSpinning = false
+	end)
+
+	spinTween:Play()
+end)
 
 BuildPlatformMenu()
+BuildSettingsMenu()
+BuildAlphabetSidebar()
 LoadIcons("Lucide")
