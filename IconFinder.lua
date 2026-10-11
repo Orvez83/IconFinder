@@ -2,6 +2,7 @@ local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local PlatformURLs = {
 	["Lucide"] = {
@@ -11,6 +12,10 @@ local PlatformURLs = {
 	["Gravity"] = {
 		"https://cdn.jsdelivr.net/gh/Orvez83/IconFinder@main/Icons/Gravity.lua",
 		"https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Gravity.lua"
+	},
+	["Material"] = {
+		"https://cdn.jsdelivr.net/gh/Orvez83/IconFinder@main/Icons/Material.lua",
+		"https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Icons/Material.lua"
 	},
 	["Solar"] = {
 		"https://cdn.jsdelivr.net/gh/Orvez83/IconFinder@main/Icons/Solar.lua",
@@ -31,7 +36,18 @@ local MultiSelectMode = false
 local SelectedIcons = {}
 local CurrentAlphabetFilter = nil
 
-local MAX_SETTINGS_HEIGHT = 230
+local DefaultCornerRadius = 25
+local DefaultBgTransparency = 0.03
+local DefaultIconButtonTransparency = 0
+local DefaultIconGridSize = 60
+local DefaultMainUIScaleX = 1.112
+local DefaultMainUIOffsetX = 0
+local DefaultMainUIScaleY = 1.11
+local DefaultMainUIOffsetY = 0
+local DefaultUIScale = 0.90
+local DefaultHoverAnimations = true
+local HoverAnimations = DefaultHoverAnimations
+local SettingsFileName = "IconFinder_Settings.json"
 
 local function HttpGetWithRetry(urls, maxRetries)
 	maxRetries = maxRetries or 3
@@ -63,12 +79,13 @@ end
 local PlatformOrder = {
 	"Lucide",
 	"Gravity",
+	"Material",
 	"Solar",
 	"SFSymbols"
 }
 
 local CurrentIcons = {}
-local IconObjects = {}
+local currentLoadToken = 0
 
 local IconFinder = Instance.new("ScreenGui")
 IconFinder.Parent = game:GetService("CoreGui")
@@ -94,7 +111,7 @@ OpenUI.BorderSizePixel = 0
 OpenUI.BackgroundColor3 = Color3.fromRGB(21,21,21)
 OpenUI.AnchorPoint = Vector2.new(0,0.5)
 OpenUI.BackgroundTransparency = 0.1
-OpenUI.Size = UDim2.new(0,135,0,38)
+OpenUI.Size = UDim2.new(0,135,0,39)
 OpenUI.Text = ""
 OpenUI.Name = "OpenUI"
 OpenUI.Position = UDim2.new(0,65,0.5,0)
@@ -104,11 +121,11 @@ OIcon.Parent = OpenUI
 OIcon.BorderSizePixel = 0
 OIcon.BackgroundColor3 = Color3.fromRGB(255,255,255)
 OIcon.AnchorPoint = Vector2.new(0,0.5)
-OIcon.Image = "rbxassetid://129989433311409"
-OIcon.Size = UDim2.new(0,22,0,22)
+OIcon.Image = "rbxassetid://112877276144236"
+OIcon.Size = UDim2.new(0,26,0,26)
 OIcon.BackgroundTransparency = 1
 OIcon.Name = "OIcon"
-OIcon.Position = UDim2.new(0,12,0.5,-1)
+OIcon.Position = UDim2.new(0,12,0.5,-0.82)
 
 local OpenCorner = Instance.new("UICorner")
 OpenCorner.Parent = OpenUI
@@ -127,7 +144,7 @@ Title2.AnchorPoint = Vector2.new(1,0.5)
 Title2.Size = UDim2.new(0,80,0,28)
 Title2.Text = "Icon Finder"
 Title2.Name = "Title2"
-Title2.Position = UDim2.new(1,-14,0.5,0)
+Title2.Position = UDim2.new(1,-14,0.5,-1)
 
 local MainUI = Instance.new("Frame")
 MainUI.Parent = IconFinder
@@ -173,10 +190,24 @@ SearchBox.BackgroundColor3 = Color3.fromRGB(255,255,255)
 SearchBox.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json",Enum.FontWeight.Bold,Enum.FontStyle.Normal)
 SearchBox.AnchorPoint = Vector2.new(1,0.5)
 SearchBox.PlaceholderText = "Search Icon..."
-SearchBox.Size = UDim2.new(0.9,0,0.66,0)
-SearchBox.Position = UDim2.new(1,-12,0.5,0)
+SearchBox.Size = UDim2.new(0.9,-16,0.66,0)
+SearchBox.Position = UDim2.new(1,-28,0.5,0)
 SearchBox.Text = ""
 SearchBox.BackgroundTransparency = 1
+
+local ClearBox = Instance.new("ImageButton")
+ClearBox.Parent = SearchBar
+ClearBox.Name = "ClearBox"
+ClearBox.Visible = false
+ClearBox.BorderSizePixel = 0
+ClearBox.BackgroundTransparency = 1
+ClearBox.BackgroundColor3 = Color3.fromRGB(255,255,255)
+ClearBox.ImageColor3 = Color3.fromRGB(210,210,210)
+ClearBox.AnchorPoint = Vector2.new(1,0.5)
+ClearBox.Image = "rbxassetid://102572546754562"
+ClearBox.Size = UDim2.new(0,26,0,26)
+ClearBox.Position = UDim2.new(1,-9,0.5,0)
+ClearBox.ZIndex = 3
 
 local SbarCorner = Instance.new("UICorner")
 SbarCorner.Parent = SearchBar
@@ -288,6 +319,112 @@ PreviewIcon.Size = UDim2.new(0,55,0,55)
 PreviewIcon.BackgroundTransparency = 1
 PreviewIcon.Name = "PreviewIcon"
 PreviewIcon.Position = UDim2.new(0.5,-1,0,17)
+
+local PreviewIconScale = Instance.new("UIScale")
+PreviewIconScale.Scale = 1
+PreviewIconScale.Parent = PreviewIcon
+
+local PreviewIconBaseRotation = 0
+local PreviewIconBaseSize = PreviewIcon.Size
+local PreviewMorphToken = 0
+
+local PreviewMorphOut = TweenInfo.new(
+	0.1,
+	Enum.EasingStyle.Sine,
+	Enum.EasingDirection.In
+)
+
+local PreviewMorphIn = TweenInfo.new(
+	0.4,
+	Enum.EasingStyle.Back,
+	Enum.EasingDirection.Out
+)
+
+local PreviewMorphSettle = TweenInfo.new(
+	0.18,
+	Enum.EasingStyle.Quad,
+	Enum.EasingDirection.Out
+)
+
+local function TweenPreviewIcon(object, tweenInfo, properties)
+	local tween = TweenService:Create(object, tweenInfo, properties)
+	tween:Play()
+	return tween
+end
+
+local function MorphPreviewIcon(newImage)
+	if not newImage or newImage == "" then
+		PreviewIcon.Image = newImage or ""
+		return
+	end
+
+	if PreviewIcon.Image == "" then
+		PreviewIcon.Image = newImage
+		PreviewIcon.ImageTransparency = 0
+		PreviewIcon.Rotation = PreviewIconBaseRotation
+		PreviewIcon.Size = PreviewIconBaseSize
+		PreviewIconScale.Scale = 1
+		return
+	end
+
+	if PreviewIcon.Image == newImage then
+		return
+	end
+
+	PreviewMorphToken = PreviewMorphToken + 1
+	local token = PreviewMorphToken
+
+	TweenPreviewIcon(PreviewIcon, PreviewMorphOut, {
+		ImageTransparency = 1,
+		Rotation = PreviewIconBaseRotation - 16,
+		Size = UDim2.new(
+			PreviewIconBaseSize.X.Scale, math.floor(PreviewIconBaseSize.X.Offset * 0.8 + 0.5),
+			PreviewIconBaseSize.Y.Scale, math.floor(PreviewIconBaseSize.Y.Offset * 0.18 + 0.5)
+		)
+	})
+
+	TweenPreviewIcon(PreviewIconScale, PreviewMorphOut, {
+		Scale = 0.9
+	})
+
+	task.delay(0.09, function()
+		if token ~= PreviewMorphToken then
+			return
+		end
+
+		PreviewIcon.Image = newImage
+		PreviewIcon.ImageTransparency = 1
+		PreviewIcon.Rotation = PreviewIconBaseRotation + 16
+		PreviewIcon.Size = UDim2.new(
+			PreviewIconBaseSize.X.Scale, math.floor(PreviewIconBaseSize.X.Offset * 0.8 + 0.5),
+			PreviewIconBaseSize.Y.Scale, math.floor(PreviewIconBaseSize.Y.Offset * 0.18 + 0.5)
+		)
+		PreviewIconScale.Scale = 0.9
+
+		TweenPreviewIcon(PreviewIcon, PreviewMorphIn, {
+			ImageTransparency = 0,
+			Rotation = PreviewIconBaseRotation,
+			Size = UDim2.new(
+				PreviewIconBaseSize.X.Scale, math.floor(PreviewIconBaseSize.X.Offset * 1.12 + 0.5),
+				PreviewIconBaseSize.Y.Scale, math.floor(PreviewIconBaseSize.Y.Offset * 1.12 + 0.5)
+			)
+		})
+
+		TweenPreviewIcon(PreviewIconScale, PreviewMorphIn, {
+			Scale = 1
+		})
+
+		task.delay(0.24, function()
+			if token ~= PreviewMorphToken then
+				return
+			end
+
+			TweenPreviewIcon(PreviewIcon, PreviewMorphSettle, {
+				Size = PreviewIconBaseSize
+			})
+		end)
+	end)
+end
 
 local CopyName = Instance.new("TextButton")
 CopyName.Parent = PViewFrame
@@ -448,31 +585,90 @@ DIcon.BackgroundTransparency = 1
 DIcon.Name = "DIcon"
 DIcon.Position = UDim2.new(0.5,0,0.5,0)
 
+local FilterBtn = Instance.new("TextButton")
+FilterBtn.Parent = TopBarUI
+FilterBtn.BorderSizePixel = 0
+FilterBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+FilterBtn.AnchorPoint = Vector2.new(1,0.5)
+FilterBtn.BackgroundTransparency = 0.9
+FilterBtn.Size = UDim2.new(0,47,0,28)
+FilterBtn.Text = ""
+FilterBtn.Name = "FilterBtn"
+FilterBtn.Position = UDim2.new(1,-360,0.5,0)
+
+local SettingsCorner = Instance.new("UICorner")
+SettingsCorner.Parent = FilterBtn
+SettingsCorner.CornerRadius = UDim.new(0,10)
+
+local FIcon = Instance.new("ImageLabel")
+FIcon.Parent = FilterBtn
+FIcon.BorderSizePixel = 0
+FIcon.BackgroundColor3 = Color3.fromRGB(255,255,255)
+FIcon.AnchorPoint = Vector2.new(0.5,0.5)
+FIcon.Image = "rbxassetid://118174229311920"
+FIcon.Size = UDim2.new(0,18,0,18)
+FIcon.BackgroundTransparency = 1
+FIcon.Name = "FIcon"
+FIcon.Position = UDim2.new(0.5,0,0.5,0)
+
+local FilterMenu = Instance.new("ScrollingFrame")
+FilterMenu.Parent = FilterBtn
+FilterMenu.Visible = false
+FilterMenu.BorderSizePixel = 0
+FilterMenu.BackgroundColor3 = Color3.fromRGB(36,36,36)
+FilterMenu.AnchorPoint = Vector2.new(0.5,1)
+FilterMenu.Size = UDim2.new(0,150,0,0)
+FilterMenu.Position = UDim2.new(0.5,0,1,0)
+FilterMenu.Name = "FilterMenu"
+FilterMenu.ZIndex = 20
+FilterMenu.ScrollBarThickness = 1.8
+FilterMenu.ScrollBarImageColor3 = Color3.fromRGB(205,205,205)
+FilterMenu.ScrollingDirection = Enum.ScrollingDirection.Y
+FilterMenu.AutomaticCanvasSize = Enum.AutomaticSize.Y
+FilterMenu.CanvasSize = UDim2.new(0,0,0,0)
+FilterMenu.ClipsDescendants = true
+
+local FilterMenuCorner = Instance.new("UICorner")
+FilterMenuCorner.Parent = FilterMenu
+FilterMenuCorner.CornerRadius = UDim.new(0,14)
+
+local FilterMenuLayout = Instance.new("UIListLayout")
+FilterMenuLayout.Parent = FilterMenu
+FilterMenuLayout.SortOrder = Enum.SortOrder.LayoutOrder
+FilterMenuLayout.Padding = UDim.new(0, 3)
+FilterMenuLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local FilterMenuPadding = Instance.new("UIPadding")
+FilterMenuPadding.Parent = FilterMenu
+FilterMenuPadding.PaddingTop = UDim.new(0, 6)
+FilterMenuPadding.PaddingBottom = UDim.new(0, 6)
+
 local SettingsBtn = Instance.new("TextButton")
 SettingsBtn.Parent = TopBarUI
 SettingsBtn.BorderSizePixel = 0
 SettingsBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
 SettingsBtn.AnchorPoint = Vector2.new(1,0.5)
 SettingsBtn.BackgroundTransparency = 0.9
-SettingsBtn.Size = UDim2.new(0,47,0,28)
+SettingsBtn.Size = UDim2.new(0,37,0,28)
 SettingsBtn.Text = ""
 SettingsBtn.Name = "SettingsBtn"
-SettingsBtn.Position = UDim2.new(1,-360,0.5,0)
+SettingsBtn.Position = UDim2.new(1,-418,0.5,0)
 
-local SettingsCorner = Instance.new("UICorner")
-SettingsCorner.Parent = SettingsBtn
-SettingsCorner.CornerRadius = UDim.new(0,10)
+local SBtnCorner = Instance.new("UICorner")
+SBtnCorner.Parent = SettingsBtn
+SBtnCorner.CornerRadius = UDim.new(0,10)
 
-local SIcon = Instance.new("ImageLabel")
-SIcon.Parent = SettingsBtn
-SIcon.BorderSizePixel = 0
-SIcon.BackgroundColor3 = Color3.fromRGB(255,255,255)
-SIcon.AnchorPoint = Vector2.new(0.5,0.5)
-SIcon.Image = "rbxassetid://140704441124047"
-SIcon.Size = UDim2.new(0,18,0,18)
-SIcon.BackgroundTransparency = 1
-SIcon.Name = "SIcon"
-SIcon.Position = UDim2.new(0.5,0,0.5,0)
+local SGearIcon = Instance.new("ImageLabel")
+SGearIcon.Parent = SettingsBtn
+SGearIcon.BorderSizePixel = 0
+SGearIcon.BackgroundColor3 = Color3.fromRGB(255,255,255)
+SGearIcon.AnchorPoint = Vector2.new(0.5,0.5)
+SGearIcon.Image = "rbxassetid://94345128715799"
+SGearIcon.ImageColor3 = Color3.fromRGB(246,246,246)
+SGearIcon.Size = UDim2.new(0,19,0,19)
+SGearIcon.BackgroundTransparency = 1
+SGearIcon.Name = "SGearIcon"
+SGearIcon.Position = UDim2.new(0.5,0,0.5,0)
 
 local SettingsMenu = Instance.new("ScrollingFrame")
 SettingsMenu.Parent = SettingsBtn
@@ -480,7 +676,7 @@ SettingsMenu.Visible = false
 SettingsMenu.BorderSizePixel = 0
 SettingsMenu.BackgroundColor3 = Color3.fromRGB(36,36,36)
 SettingsMenu.AnchorPoint = Vector2.new(0.5,1)
-SettingsMenu.Size = UDim2.new(0,150,0,0)
+SettingsMenu.Size = UDim2.new(0,240,0,0)
 SettingsMenu.Position = UDim2.new(0.5,0,1,0)
 SettingsMenu.Name = "SettingsMenu"
 SettingsMenu.ZIndex = 20
@@ -505,6 +701,8 @@ local SettingsMenuPadding = Instance.new("UIPadding")
 SettingsMenuPadding.Parent = SettingsMenu
 SettingsMenuPadding.PaddingTop = UDim.new(0, 6)
 SettingsMenuPadding.PaddingBottom = UDim.new(0, 6)
+SettingsMenuPadding.PaddingLeft = UDim.new(0, 6)
+SettingsMenuPadding.PaddingRight = UDim.new(0, 6)
 
 local Title = Instance.new("TextLabel")
 Title.Parent = TopBarUI
@@ -611,16 +809,19 @@ SUICorner.CornerRadius = UDim.new(1, 0)
 local IconList = Instance.new("ScrollingFrame")
 IconList.Parent = MainUI
 IconList.BorderSizePixel = 0
-IconList.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+IconList.VerticalScrollBarInset = Enum.ScrollBarInset.None
 IconList.BackgroundColor3 = Color3.fromRGB(255,255,255)
 IconList.Name = "IconList"
 IconList.AnchorPoint = Vector2.new(0.5,1)
 IconList.Size = UDim2.new(0.99,0,0.873,0)
 IconList.Position = UDim2.new(0.5,0,1,-6)
 IconList.ZIndex = -5
-IconList.ScrollBarThickness = 0
+IconList.ScrollBarImageTransparency = 1
+IconList.ScrollBarImageColor3 = Color3.fromRGB(200,200,200)
+IconList.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
 IconList.BackgroundTransparency = 1
-IconList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+IconList.AutomaticCanvasSize = Enum.AutomaticSize.None
+IconList.ScrollBarThickness = 0
 IconList.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 local dragging = false
@@ -672,17 +873,127 @@ local IListCorner = Instance.new("UICorner")
 IListCorner.Parent = IconList
 IListCorner.CornerRadius = UDim.new(0,18)
 
-local UIGrid = Instance.new("UIGridLayout")
-UIGrid.Parent = IconList
-UIGrid.CellPadding = UDim2.new(0, 11, 0, 11)
-UIGrid.CellSize = UDim2.new(0, 60, 0, 60)
-UIGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
-UIGrid.SortOrder = Enum.SortOrder.LayoutOrder
+local ScrollTrack = Instance.new("Frame")
+ScrollTrack.Parent = MainUI
+ScrollTrack.Name = "ScrollTrack"
+ScrollTrack.BorderSizePixel = 0
+ScrollTrack.Active = true
+ScrollTrack.BackgroundColor3 = Color3.fromRGB(255,255,255)
+ScrollTrack.BackgroundTransparency = 0.95
+ScrollTrack.AnchorPoint = Vector2.new(1,1)
+ScrollTrack.Size = UDim2.new(0,11,0.853,0)
+ScrollTrack.Position = UDim2.new(0.995,-6,1,-16)
+ScrollTrack.ZIndex = 30
+ScrollTrack.Visible = false
 
-local UIPadding = Instance.new("UIPadding")
-UIPadding.Parent = IconList
-UIPadding.PaddingTop = UDim.new(0, 10)
-UIPadding.PaddingBottom = UDim.new(0, 10)
+local ScrollTrackCorner = Instance.new("UICorner")
+ScrollTrackCorner.CornerRadius = UDim.new(1,0)
+ScrollTrackCorner.Parent = ScrollTrack
+
+local ScrollHandle = Instance.new("Frame")
+ScrollHandle.Parent = ScrollTrack
+ScrollHandle.Name = "ScrollHandle"
+ScrollHandle.BorderSizePixel = 0
+ScrollHandle.Active = true
+ScrollHandle.BackgroundColor3 = Color3.fromRGB(255,255,255)
+ScrollHandle.BackgroundTransparency = 0.05
+ScrollHandle.Size = UDim2.new(1,0,0.3,0)
+ScrollHandle.Position = UDim2.new(0,0,0,0)
+ScrollHandle.ZIndex = 31
+
+local ScrollHandleCorner = Instance.new("UICorner")
+ScrollHandleCorner.CornerRadius = UDim.new(1,0)
+ScrollHandleCorner.Parent = ScrollHandle
+
+local ScrollHandleStroke = Instance.new("UIStroke")
+ScrollHandleStroke.Parent = ScrollHandle
+ScrollHandleStroke.Thickness = 1
+ScrollHandleStroke.Transparency = 0.6
+ScrollHandleStroke.Color = Color3.fromRGB(0,0,0)
+
+local ScrollHitArea = Instance.new("Frame")
+ScrollHitArea.Parent = ScrollTrack
+ScrollHitArea.Name = "ScrollHitArea"
+ScrollHitArea.BackgroundTransparency = 1
+ScrollHitArea.Active = true
+ScrollHitArea.AnchorPoint = Vector2.new(0.5, 0)
+ScrollHitArea.Size = UDim2.new(0, 26, 1, 0)
+ScrollHitArea.Position = UDim2.new(0.5, 0, 0, 0)
+ScrollHitArea.ZIndex = 32
+
+local function UpdateScrollHandle()
+	local canvasHeight = IconList.AbsoluteCanvasSize.Y
+	local viewHeight = IconList.AbsoluteWindowSize.Y
+
+	if canvasHeight <= viewHeight or canvasHeight <= 0 or viewHeight <= 0 then
+		ScrollTrack.Visible = false
+		return
+	end
+
+	ScrollTrack.Visible = true
+	local ratio = math.clamp(viewHeight / canvasHeight, 0.06, 1)
+	local maxScroll = canvasHeight - viewHeight
+	local posRatio = maxScroll > 0 and (IconList.CanvasPosition.Y / maxScroll) or 0
+
+	ScrollHandle.Size = UDim2.new(1, 0, ratio, 0)
+	ScrollHandle.Position = UDim2.new(0, 0, posRatio * (1 - ratio), 0)
+end
+
+IconList:GetPropertyChangedSignal("CanvasPosition"):Connect(UpdateScrollHandle)
+IconList:GetPropertyChangedSignal("AbsoluteCanvasSize"):Connect(UpdateScrollHandle)
+IconList:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(UpdateScrollHandle)
+UpdateScrollHandle()
+
+local scrollDragging = false
+local scrollDragStartY = 0
+local scrollDragStartCanvasY = 0
+
+local function ScrollDragUpdate(input)
+	local canvasHeight = IconList.AbsoluteCanvasSize.Y
+	local viewHeight = IconList.AbsoluteWindowSize.Y
+	local maxScroll = math.max(canvasHeight - viewHeight, 0)
+	local trackHeight = ScrollTrack.AbsoluteSize.Y
+
+	if trackHeight <= 0 or maxScroll <= 0 then return end
+
+	local deltaY = input.Position.Y - scrollDragStartY
+	local deltaCanvas = (deltaY / trackHeight) * canvasHeight
+	local newY = math.clamp(scrollDragStartCanvasY + deltaCanvas, 0, maxScroll)
+	IconList.CanvasPosition = Vector2.new(0, newY)
+end
+
+ScrollHitArea.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		scrollDragging = true
+		scrollDragStartY = input.Position.Y
+		scrollDragStartCanvasY = IconList.CanvasPosition.Y
+
+		local canvasHeight = IconList.AbsoluteCanvasSize.Y
+		local viewHeight = IconList.AbsoluteWindowSize.Y
+		local maxScroll = math.max(canvasHeight - viewHeight, 0)
+		local trackHeight = ScrollTrack.AbsoluteSize.Y
+		local handleTop = ScrollHandle.AbsolutePosition.Y
+		local handleBottom = handleTop + ScrollHandle.AbsoluteSize.Y
+
+		if trackHeight > 0 and (input.Position.Y < handleTop or input.Position.Y > handleBottom) then
+			local relY = math.clamp((input.Position.Y - ScrollTrack.AbsolutePosition.Y) / trackHeight, 0, 1)
+			IconList.CanvasPosition = Vector2.new(0, relY * maxScroll)
+			scrollDragStartCanvasY = IconList.CanvasPosition.Y
+		end
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if scrollDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		ScrollDragUpdate(input)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		scrollDragging = false
+	end
+end)
 
 local AlphabetHandle = Instance.new("TextButton")
 AlphabetHandle.Parent = MainUI
@@ -692,7 +1003,7 @@ AlphabetHandle.BorderSizePixel = 0
 AlphabetHandle.BackgroundColor3 = Color3.fromRGB(31,31,31)
 AlphabetHandle.BackgroundTransparency = 1
 AlphabetHandle.AnchorPoint = Vector2.new(0,0.5)
-AlphabetHandle.Size = UDim2.new(0,25,0,240)
+AlphabetHandle.Size = UDim2.new(0,28,0,345)
 AlphabetHandle.Position = UDim2.new(0,0,0.5,0)
 AlphabetHandle.Name = "AlphabetHandle"
 AlphabetHandle.ZIndex = 6
@@ -724,8 +1035,8 @@ CloseSidebarBtn.Parent = AlphabetSidebar
 CloseSidebarBtn.BorderSizePixel = 0
 CloseSidebarBtn.BackgroundTransparency = 1
 CloseSidebarBtn.AnchorPoint = Vector2.new(1,0.5)
-CloseSidebarBtn.Position = UDim2.new(1,27,0.5,0)
-CloseSidebarBtn.Size = UDim2.new(0,20,0,26)
+CloseSidebarBtn.Position = UDim2.new(1,38,0.5,0)
+CloseSidebarBtn.Size = UDim2.new(0,31,0,28)
 CloseSidebarBtn.Image = "rbxassetid://73780377692148"
 CloseSidebarBtn.ImageColor3 = Color3.fromRGB(220,220,220)
 CloseSidebarBtn.Name = "CloseSidebarBtn"
@@ -801,56 +1112,276 @@ AlphabetListLayout.Parent = AlphabetList
 AlphabetListLayout.SortOrder = Enum.SortOrder.LayoutOrder
 AlphabetListLayout.Padding = UDim.new(0,2)
 
-local function ProcessFiltersAndSort()
-	local query = SearchBox.Text:lower():gsub("%s+", "")
-	local visibleIcons = {}
+local GRID_PAD = 11
+local TOP_PAD = 10
+local BOTTOM_PAD = 10
+local BUFFER_ROWS = 2
+local SEARCH_DEBOUNCE = 0.15
 
-	for _, item in ipairs(CurrentIcons) do
-		local iconName = item.Name:lower():gsub("%s+", "")
-		local matchesSearch = (query == "") or (iconName:find(query, 1, true) ~= nil)
-		local matchesFilter = false
+local GridCell = DefaultIconGridSize
+local GridCols = 1
+local GridStride = GridCell + GRID_PAD
+local GridX0 = 0
 
-		if CurrentFilters["All"] then
-			matchesFilter = true
-		else
-			if CurrentFilters["Fill/Bold"] and (iconName:find("fill", 1, true) ~= nil or iconName:find("bold", 1, true) ~= nil) then
-				matchesFilter = true
-			end
-			if CurrentFilters["Square"] and iconName:find("square", 1, true) ~= nil then
-				matchesFilter = true
-			end
-			if CurrentFilters["Circle"] and iconName:find("circle", 1, true) ~= nil then
-				matchesFilter = true
-			end
-			if CurrentFilters["Triangle"] and iconName:find("triangle", 1, true) ~= nil then
-				matchesFilter = true
-			end
-		end
+local FilteredIcons = {}
+local IconPool = {}
+local PoolSize = 0
+local isLoadingIcons = false
+local renderDirty = false
 
-		local matchesAlpha = true
-		if CurrentAlphabetFilter then
-			local firstChar = string.sub(iconName, 1, 1):upper()
-			matchesAlpha = (firstChar == CurrentAlphabetFilter)
-		end
+local lastLayout = {w = -1, h = -1, cell = -1, k = -1}
 
-		if matchesSearch and matchesFilter and matchesAlpha then
-			item.Obj.Visible = true
-			table.insert(visibleIcons, item)
-		else
-			item.Obj.Visible = false
-		end
+local HandleIconClick
+
+local COLOR_NORMAL = Color3.fromRGB(31, 31, 31)
+local COLOR_SELECTED = Color3.fromRGB(56, 56, 56)
+local WHITE = Color3.fromRGB(255, 255, 255)
+
+local HoverInfoBg = TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local HoverInfoScale = TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local LeaveInfo = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local PressInfo = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local ReleaseInfo = TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+local function MatchesFilter(item)
+	if CurrentFilters["All"] then
+		return true
 	end
+	local f = item.Flags
+	if CurrentFilters["Fill/Bold"] and f.FillBold then return true end
+	if CurrentFilters["Square"] and f.Square then return true end
+	if CurrentFilters["Circle"] and f.Circle then return true end
+	if CurrentFilters["Triangle"] and f.Triangle then return true end
+	return false
+end
 
-	if CurrentSort == "Z-A" then
-		table.sort(visibleIcons, function(a, b) return a.Name > b.Name end)
-	else
-		table.sort(visibleIcons, function(a, b) return a.Name < b.Name end)
-	end
+local function CreateIconSlot()
+	local bgTransparency = IconList:GetAttribute("IconButtonTransparency") or DefaultIconButtonTransparency
+	local imgSize = math.floor(GridCell * 0.667 + 0.5)
 
-	for i, item in ipairs(visibleIcons) do
-		item.Obj.LayoutOrder = i
+	local Holder = Instance.new("TextButton")
+	Holder.Text = ""
+	Holder.BackgroundColor3 = COLOR_NORMAL
+	Holder.BackgroundTransparency = bgTransparency
+	Holder.Size = UDim2.new(0, GridCell, 0, GridCell)
+	Holder.Visible = false
+	Holder.Parent = IconList
+
+	local UICorner = Instance.new("UICorner")
+	UICorner.CornerRadius = UDim.new(0, 12)
+	UICorner.Parent = Holder
+
+	local btn = Instance.new("ImageLabel")
+	btn.BackgroundTransparency = 1
+	btn.Size = UDim2.new(0, imgSize, 0, imgSize)
+	btn.Position = UDim2.new(0.5, 0, 0.5, 0)
+	btn.AnchorPoint = Vector2.new(0.5, 0.5)
+	btn.Parent = Holder
+
+	local HolderStroke = Instance.new("UIStroke")
+	HolderStroke.Thickness = 1
+	HolderStroke.Transparency = 1
+	HolderStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	HolderStroke.Color = WHITE
+	HolderStroke.Parent = Holder
+
+	local HolderScale = Instance.new("UIScale")
+	HolderScale.Scale = 1
+	HolderScale.Parent = Holder
+
+	local slot = {
+		Holder = Holder,
+		Image = btn,
+		Stroke = HolderStroke,
+		Scale = HolderScale,
+		Index = nil,
+		Data = nil,
+		Hovering = false,
+	}
+
+	Holder.MouseEnter:Connect(function()
+		slot.Hovering = true
+		if not HoverAnimations then return end
+		local currentBg = IconList:GetAttribute("IconButtonTransparency") or DefaultIconButtonTransparency
+		TweenService:Create(Holder, HoverInfoBg, {BackgroundTransparency = math.max(currentBg - 0.55, 0)}):Play()
+		TweenService:Create(HolderStroke, HoverInfoBg, {Transparency = 0.55}):Play()
+		TweenService:Create(HolderScale, HoverInfoScale, {Scale = 1.08}):Play()
+	end)
+
+	Holder.MouseLeave:Connect(function()
+		slot.Hovering = false
+		if not HoverAnimations then return end
+		local currentBg = IconList:GetAttribute("IconButtonTransparency") or DefaultIconButtonTransparency
+		TweenService:Create(Holder, LeaveInfo, {BackgroundTransparency = currentBg}):Play()
+		TweenService:Create(HolderStroke, LeaveInfo, {Transparency = 1}):Play()
+		TweenService:Create(HolderScale, LeaveInfo, {Scale = 1}):Play()
+	end)
+
+	Holder.MouseButton1Click:Connect(function()
+		local data = slot.Data
+		if not data then return end
+
+		if HoverAnimations then
+			TweenService:Create(HolderScale, PressInfo, {Scale = slot.Hovering and 0.95 or 0.92}):Play()
+		end
+		task.delay(0.08, function()
+			if HoverAnimations and Holder.Parent then
+				TweenService:Create(HolderScale, ReleaseInfo, {Scale = slot.Hovering and 1.08 or 1}):Play()
+			end
+		end)
+
+		HandleIconClick(data, btn, Holder)
+	end)
+
+	return slot
+end
+
+local function HideSlot(slot)
+	slot.Index = nil
+	slot.Data = nil
+	slot.Holder.Visible = false
+	if slot.Hovering then
+		slot.Hovering = false
+		slot.Scale.Scale = 1
+		slot.Stroke.Transparency = 1
+		slot.Holder.BackgroundTransparency = IconList:GetAttribute("IconButtonTransparency") or DefaultIconButtonTransparency
 	end
 end
+
+local function BindSlot(slot, i)
+	local item = FilteredIcons[i]
+	local idx = i - 1
+	local row = math.floor(idx / GridCols)
+	local col = idx - row * GridCols
+
+	slot.Index = i
+	slot.Data = item
+	slot.Holder.Position = UDim2.new(0, GridX0 + col * GridStride, 0, TOP_PAD + row * GridStride)
+	slot.Image.Image = item.Image
+	slot.Holder.BackgroundColor3 = SelectedIcons[item.ID] and COLOR_SELECTED or COLOR_NORMAL
+	slot.Holder.Visible = true
+end
+
+local function RenderVisibleIcons()
+	local total = #FilteredIcons
+	if PoolSize <= 0 then return end
+
+	local k = UiScale.Scale
+	local scrollY = IconList.CanvasPosition.Y / k
+	local firstRow = math.max(0, math.floor((scrollY - TOP_PAD) / GridStride) - BUFFER_ROWS)
+	local first = firstRow * GridCols + 1
+	local last = math.min(total, first + PoolSize - 1)
+
+	for s = 1, #IconPool do
+		local slot = IconPool[s]
+		if slot.Index and (s > PoolSize or slot.Index < first or slot.Index > last) then
+			HideSlot(slot)
+		elseif s > PoolSize and slot.Holder.Visible then
+			HideSlot(slot)
+		end
+	end
+
+	for i = first, last do
+		local slot = IconPool[(i - 1) % PoolSize + 1]
+		if slot.Index ~= i then
+			BindSlot(slot, i)
+		end
+	end
+end
+
+local function Relayout(force)
+	local k = UiScale.Scale
+	local winX = IconList.AbsoluteWindowSize.X / k
+	local winY = IconList.AbsoluteWindowSize.Y / k
+	if winX <= 0 or winY <= 0 then return end
+
+	if not force
+		and lastLayout.w == winX and lastLayout.h == winY
+		and lastLayout.cell == GridCell and lastLayout.k == k then
+		return
+	end
+	lastLayout.w, lastLayout.h, lastLayout.cell, lastLayout.k = winX, winY, GridCell, k
+
+	GridStride = GridCell + GRID_PAD
+	GridCols = math.max(1, math.floor((winX + GRID_PAD) / GridStride))
+	GridX0 = math.max(0, math.floor((winX - (GridCols * GridStride - GRID_PAD)) / 2))
+
+	local total = #FilteredIcons
+	local rows = math.ceil(total / GridCols)
+	local canvasH = 0
+	if rows > 0 then
+		canvasH = TOP_PAD + rows * GridStride - GRID_PAD + BOTTOM_PAD
+	end
+	IconList.CanvasSize = UDim2.new(0, 0, 0, canvasH)
+
+	local visibleRows = math.ceil(winY / GridStride) + 1 + BUFFER_ROWS * 2
+	PoolSize = visibleRows * GridCols
+	while #IconPool < PoolSize do
+		table.insert(IconPool, CreateIconSlot())
+	end
+
+	local imgSize = math.floor(GridCell * 0.667 + 0.5)
+	for _, slot in ipairs(IconPool) do
+		slot.Holder.Size = UDim2.new(0, GridCell, 0, GridCell)
+		slot.Image.Size = UDim2.new(0, imgSize, 0, imgSize)
+		HideSlot(slot)
+	end
+
+	RenderVisibleIcons()
+end
+
+local function ProcessFiltersAndSort()
+	local query = SearchBox.Text:lower():gsub("%s+", "")
+	local out = {}
+	local n = 0
+
+	local from, to, step = 1, #CurrentIcons, 1
+	if CurrentSort == "Z-A" then
+		from, to, step = #CurrentIcons, 1, -1
+	end
+
+	local alpha = CurrentAlphabetFilter
+	for i = from, to, step do
+		local item = CurrentIcons[i]
+		if (not alpha or item.FirstChar == alpha)
+			and MatchesFilter(item)
+			and (query == "" or item.CleanName:find(query, 1, true)) then
+			n = n + 1
+			out[n] = item
+		end
+	end
+
+	FilteredIcons = out
+	for _, slot in ipairs(IconPool) do
+		HideSlot(slot)
+	end
+	IconList.CanvasPosition = Vector2.new(0, 0)
+	Relayout(true)
+
+	if not isLoadingIcons then
+		CountLabel.Text = tostring(n)
+	end
+end
+
+IconList:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+	renderDirty = true
+end)
+IconList:GetPropertyChangedSignal("AbsoluteWindowSize"):Connect(function()
+	Relayout(false)
+end)
+UiScale:GetPropertyChangedSignal("Scale"):Connect(function()
+	Relayout(false)
+end)
+
+local renderConn = RunService.Heartbeat:Connect(function()
+	if renderDirty then
+		renderDirty = false
+		RenderVisibleIcons()
+	end
+end)
+IconFinder.Destroying:Connect(function()
+	renderConn:Disconnect()
+end)
 
 local function ToggleFilter(name)
 	if name == "All" then
@@ -907,28 +1438,9 @@ local function GetLetterCounts()
 	end
 	local totalCount = 0
 	for _, item in ipairs(CurrentIcons) do
-		local iconName = item.Name
-		local matchesFilter = false
-		if CurrentFilters["All"] then
-			matchesFilter = true
-		else
-			if CurrentFilters["Fill/Bold"] and (iconName:find("fill", 1, true) ~= nil or iconName:find("bold", 1, true) ~= nil) then
-				matchesFilter = true
-			end
-			if CurrentFilters["Square"] and iconName:find("square", 1, true) ~= nil then
-				matchesFilter = true
-			end
-			if CurrentFilters["Circle"] and iconName:find("circle", 1, true) ~= nil then
-				matchesFilter = true
-			end
-			if CurrentFilters["Triangle"] and iconName:find("triangle", 1, true) ~= nil then
-				matchesFilter = true
-			end
-		end
-
-		if matchesFilter then
+		if MatchesFilter(item) then
 			totalCount = totalCount + 1
-			local firstChar = string.sub(iconName, 1, 1):upper()
+			local firstChar = item.FirstChar
 			if counts[firstChar] ~= nil then
 				counts[firstChar] = counts[firstChar] + 1
 			end
@@ -1073,7 +1585,7 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
-local function HandleIconClick(data, btn, Holder)
+HandleIconClick = function(data, btn, Holder)
 	local idStr = (string.find(tostring(data.ID), "rbxassetid://") and tostring(data.ID)) or "rbxassetid://" .. tostring(data.ID)
 
 	if CopyOnPress then
@@ -1090,76 +1602,89 @@ local function HandleIconClick(data, btn, Holder)
 			Holder.BackgroundColor3 = Color3.fromRGB(56, 56, 56)
 		end
 	else
-		PreviewIcon.Image = idStr
+		MorphPreviewIcon(idStr)
 		IconName.Text = data.Name
 		PViewFrame.Visible = true
 	end
 end
 
+local ItemCache = {}
+
+local function BuildItems(result)
+	local items, n = {}, 0
+	for name, id in pairs(result) do
+		name = tostring(name)
+		local clean = (name:lower():gsub("%s+", ""))
+		local idStr = tostring(id)
+		if not idStr:find("rbxassetid://", 1, true) then
+			idStr = "rbxassetid://" .. idStr
+		end
+		n = n + 1
+		items[n] = {
+			Name = name,
+			ID = id,
+			Image = idStr,
+			CleanName = clean,
+			FirstChar = clean:sub(1, 1):upper(),
+			Flags = {
+				FillBold = (clean:find("fill", 1, true) ~= nil) or (clean:find("bold", 1, true) ~= nil),
+				Square = clean:find("square", 1, true) ~= nil,
+				Circle = clean:find("circle", 1, true) ~= nil,
+				Triangle = clean:find("triangle", 1, true) ~= nil,
+			},
+		}
+		if n % 2500 == 0 then task.wait() end
+	end
+	table.sort(items, function(a, b) return a.CleanName < b.CleanName end)
+	return items
+end
+
 local function LoadIcons(platform)
-	for _, obj in pairs(IconObjects) do obj:Destroy() end
-	IconObjects = {}
+	currentLoadToken = currentLoadToken + 1
+	local myToken = currentLoadToken
+
+	isLoadingIcons = true
 	CurrentIcons = {}
 	SelectedIcons = {}
 	CurrentAlphabetFilter = nil
 	CountLabel.Text = "Loading..."
 	PlatformName.Text = platform
+	ProcessFiltersAndSort()
 
 	task.spawn(function()
-		local success, result
+		local items = ItemCache[platform]
 
-		if IconCache[platform] then
-			success, result = true, IconCache[platform]
-		else
-			local ok, rawData = HttpGetWithRetry(PlatformURLs[platform])
+		if not items then
+			local result = IconCache[platform]
 
-			if ok then
-				success, result = pcall(function()
-					local func = loadstring(rawData)
-					if not func then error("Syntax Error in Raw Data") end
-					return func()
-				end)
-
-				if success and type(result) == "table" then
-					IconCache[platform] = result
+			if not result then
+				local ok, rawData = HttpGetWithRetry(PlatformURLs[platform])
+				if ok then
+					local s, r = pcall(function()
+						local func = loadstring(rawData)
+						if not func then error("Syntax Error in Raw Data") end
+						return func()
+					end)
+					if s and type(r) == "table" then
+						IconCache[platform] = r
+						result = r
+					end
 				end
-			else
-				success, result = false, rawData
+			end
+
+			if myToken ~= currentLoadToken then return end
+
+			if result then
+				items = BuildItems(result)
+				ItemCache[platform] = items
 			end
 		end
 
-		if success and type(result) == "table" then
-			local sorted = {}
-			for name, id in pairs(result) do
-				table.insert(sorted, {Name = name, ID = id})
-			end
-			table.sort(sorted, function(a, b) return a.Name:lower() < b.Name:lower() end)
+		if myToken ~= currentLoadToken then return end
 
-			for i, data in ipairs(sorted) do
-				local Holder = Instance.new("TextButton")
-				Holder.Text = ""
-				Holder.BackgroundColor3 = Color3.fromRGB(31, 31, 31)
-				Holder.Parent = IconList
-				Instance.new("UICorner", Holder).CornerRadius = UDim.new(0, 12)
-
-				local btn = Instance.new("ImageLabel")
-				btn.BackgroundTransparency = 1
-				btn.Image = (string.find(tostring(data.ID), "rbxassetid://") and tostring(data.ID)) or "rbxassetid://" .. tostring(data.ID)
-				btn.Parent = Holder
-
-				Holder.Size = UDim2.new(0, 60, 0, 60)
-				btn.Size = UDim2.new(0, 40, 0, 40)
-				btn.Position = UDim2.new(0.5, 0, 0.5, 0)
-				btn.AnchorPoint = Vector2.new(0.5, 0.5)
-
-				Holder.MouseButton1Click:Connect(function()
-					HandleIconClick(data, btn, Holder)
-				end)
-
-				table.insert(IconObjects, Holder)
-				table.insert(CurrentIcons, {Obj = Holder, Name = data.Name:lower(), ID = data.ID})
-			end
-			CountLabel.Text = tostring(#sorted)
+		if items then
+			CurrentIcons = items
+			isLoadingIcons = false
 			ProcessFiltersAndSort()
 		else
 			CountLabel.Text = "HTTP Err"
@@ -1173,6 +1698,514 @@ local function SetPlatform(name, btn)
 	SelectCheck.Parent = btn
 	Container.Visible = false
 	LoadIcons(name)
+end
+
+local saveToken = 0
+
+local function SaveSettings()
+	if not writefile then return end
+	saveToken = saveToken + 1
+	local myToken = saveToken
+	task.delay(0.6, function()
+		if myToken ~= saveToken then return end
+		pcall(function()
+			writefile(SettingsFileName, HttpService:JSONEncode({
+				CornerRadius = MUICorner.CornerRadius.Offset,
+				BgTransparency = MainUI.BackgroundTransparency,
+				IconButtonTransparency = IconList:GetAttribute("IconButtonTransparency") or DefaultIconButtonTransparency,
+				IconGridSize = GridCell,
+				SizeScaleX = MainUI.Size.X.Scale,
+				SizeOffsetX = MainUI.Size.X.Offset,
+				SizeScaleY = MainUI.Size.Y.Scale,
+				SizeOffsetY = MainUI.Size.Y.Offset,
+				UIScale = UiScale.Scale,
+				HoverAnimations = HoverAnimations,
+			}))
+		end)
+	end)
+end
+
+function ApplyCornerRadius(v)
+	MUICorner.CornerRadius = UDim.new(0, v)
+	TbCorner.CornerRadius = UDim.new(0, v)
+	SaveSettings()
+end
+
+function ApplyBgTransparency(v)
+	MainUI.BackgroundTransparency = v
+	SaveSettings()
+end
+
+function ApplyIconButtonTransparency(v)
+	IconList:SetAttribute("IconButtonTransparency", v)
+	for _, slot in ipairs(IconPool) do
+		slot.Holder.BackgroundTransparency = v
+	end
+	SaveSettings()
+end
+
+function ApplyIconGridSize(v)
+	GridCell = v
+	Relayout(true)
+	SaveSettings()
+end
+
+function ApplyMainUISize(sx, ox, sy, oy)
+	MainUI.Size = UDim2.new(sx, ox, sy, oy)
+	SaveSettings()
+end
+
+function ApplyUIScale(v)
+	UiScale.Scale = v
+	SaveSettings()
+end
+
+function ApplyHoverAnimations(v)
+	HoverAnimations = v and true or false
+	SaveSettings()
+end
+
+local function LoadSettings()
+	if not (isfile and readfile) then return end
+	local ok, data = pcall(function()
+		if not isfile(SettingsFileName) then return nil end
+		return HttpService:JSONDecode(readfile(SettingsFileName))
+	end)
+	if not ok or type(data) ~= "table" then return end
+
+	local function num(key, min, max, default)
+		local v = tonumber(data[key])
+		if not v then return default end
+		return math.clamp(v, min, max)
+	end
+
+	ApplyCornerRadius(num("CornerRadius", 0, 50, DefaultCornerRadius))
+	ApplyBgTransparency(num("BgTransparency", 0, 1, DefaultBgTransparency))
+	ApplyIconButtonTransparency(num("IconButtonTransparency", 0, 1, DefaultIconButtonTransparency))
+	ApplyIconGridSize(num("IconGridSize", 40, 90, DefaultIconGridSize))
+	ApplyMainUISize(
+		num("SizeScaleX", 0.2, 3, DefaultMainUIScaleX),
+		num("SizeOffsetX", -2000, 2000, DefaultMainUIOffsetX),
+		num("SizeScaleY", 0.2, 3, DefaultMainUIScaleY),
+		num("SizeOffsetY", -2000, 2000, DefaultMainUIOffsetY)
+	)
+	ApplyUIScale(num("UIScale", 0.7, 1.3, DefaultUIScale))
+	if type(data.HoverAnimations) == "boolean" then
+		ApplyHoverAnimations(data.HoverAnimations)
+	end
+end
+
+local ActiveSettingsSlider = nil
+
+local function CreateSettingsSliderRow(parent, order, label, min, max, value, decimals, suffix, onChange)
+	suffix = suffix or ""
+
+	local row = Instance.new("Frame")
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1, 0, 0, 48)
+	row.LayoutOrder = order
+	row.Parent = parent
+
+	local lbl = Instance.new("TextLabel")
+	lbl.BorderSizePixel = 0
+	lbl.BackgroundTransparency = 1
+	lbl.Size = UDim2.new(1, -62, 0, 18)
+	lbl.Position = UDim2.new(0, 6, 0, 0)
+	lbl.Text = label
+	lbl.TextColor3 = Color3.fromRGB(210, 210, 210)
+	lbl.TextSize = 14
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	lbl.Parent = row
+
+	local valuePill = Instance.new("Frame")
+	valuePill.BorderSizePixel = 0
+	valuePill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	valuePill.BackgroundTransparency = 0.9
+	valuePill.AnchorPoint = Vector2.new(1, 0)
+	valuePill.Size = UDim2.new(0, 54, 0, 18)
+	valuePill.Position = UDim2.new(1, -6, 0, 0)
+	valuePill.Parent = row
+
+	local valuePillCorner = Instance.new("UICorner")
+	valuePillCorner.CornerRadius = UDim.new(1, 0)
+	valuePillCorner.Parent = valuePill
+
+	local valueLbl = Instance.new("TextLabel")
+	valueLbl.BorderSizePixel = 0
+	valueLbl.BackgroundTransparency = 1
+	valueLbl.Size = UDim2.new(1, 0, 1, 0)
+	valueLbl.Text = tostring(value) .. suffix
+	valueLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+	valueLbl.TextSize = 12
+	valueLbl.TextXAlignment = Enum.TextXAlignment.Center
+	valueLbl.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+	valueLbl.Parent = valuePill
+
+	local track = Instance.new("Frame")
+	track.BorderSizePixel = 0
+	track.Size = UDim2.new(1, -12, 0, 8)
+	track.Position = UDim2.new(0, 6, 0, 28)
+	track.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	track.BackgroundTransparency = 0.9
+	track.Parent = row
+
+	local trackCorner = Instance.new("UICorner")
+	trackCorner.CornerRadius = UDim.new(1, 0)
+	trackCorner.Parent = track
+
+	local fraction = math.clamp((value - min) / (max - min), 0, 1)
+
+	local fill = Instance.new("Frame")
+	fill.BorderSizePixel = 0
+	fill.Size = UDim2.new(fraction, 0, 1, 0)
+	fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	fill.Parent = track
+
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(1, 0)
+	fillCorner.Parent = fill
+
+	local hitArea = Instance.new("Frame")
+	hitArea.BorderSizePixel = 0
+	hitArea.BackgroundTransparency = 1
+	hitArea.Active = true
+	hitArea.AnchorPoint = Vector2.new(0.5, 0.5)
+	hitArea.Size = UDim2.new(1, 0, 0, 24)
+	hitArea.Position = UDim2.new(0.5, 0, 0.5, 0)
+	hitArea.ZIndex = 2
+	hitArea.Parent = track
+
+	local function SetFraction(f)
+		f = math.clamp(f, 0, 1)
+		local v = min + (max - min) * f
+		if decimals and decimals > 0 then
+			local mult = 10 ^ decimals
+			v = math.floor(v * mult + 0.5) / mult
+		else
+			v = math.floor(v + 0.5)
+		end
+		fill.Size = UDim2.new(f, 0, 1, 0)
+		valueLbl.Text = tostring(v) .. suffix
+		onChange(v)
+	end
+
+	local dragging = false
+	local sliderId = {}
+
+	hitArea.InputBegan:Connect(function(input)
+		if ActiveSettingsSlider ~= nil then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			ActiveSettingsSlider = sliderId
+			SetFraction((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X)
+		end
+	end)
+
+	local changedConn = UserInputService.InputChanged:Connect(function(input)
+		if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			SetFraction((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X)
+		end
+	end)
+
+	local endedConn = UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+			if ActiveSettingsSlider == sliderId then
+				ActiveSettingsSlider = nil
+			end
+		end
+	end)
+
+	row.Destroying:Connect(function()
+		if ActiveSettingsSlider == sliderId then
+			ActiveSettingsSlider = nil
+		end
+		changedConn:Disconnect()
+		endedConn:Disconnect()
+	end)
+
+	return row
+end
+
+local function CreateSettingsToggleRow(parent, order, label, value, onChange)
+	local btn = Instance.new("TextButton")
+	btn.BorderSizePixel = 0
+	btn.AutoButtonColor = false
+	btn.BackgroundTransparency = 1
+	btn.Size = UDim2.new(1, 0, 0, 24)
+	btn.TextSize = 14
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	btn.Text = "  " .. label
+	btn.LayoutOrder = order
+	btn.Parent = parent
+
+	local chk = Instance.new("ImageLabel")
+	chk.Size = UDim2.new(1.03, 0, 0, 18)
+	chk.Position = UDim2.new(0.5, 0, 0.5, 0)
+	chk.AnchorPoint = Vector2.new(0.5, 0.5)
+	chk.BackgroundTransparency = 1
+	chk.ImageTransparency = 0.75
+	chk.Image = "rbxassetid://80742398186218"
+	chk.ImageColor3 = Color3.fromRGB(255, 255, 255)
+	chk.Parent = btn
+
+	local chkCorner = Instance.new("UICorner")
+	chkCorner.CornerRadius = UDim.new(0, 5)
+	chkCorner.Parent = chk
+
+	local itemCorner = Instance.new("UICorner")
+	itemCorner.CornerRadius = UDim.new(0, 6)
+	itemCorner.Parent = btn
+
+	local function Render()
+		chk.Visible = value
+		btn.TextColor3 = value and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(210, 210, 210)
+		btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", value and Enum.FontWeight.Bold or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	end
+
+	Render()
+
+	btn.MouseButton1Click:Connect(function()
+		value = not value
+		Render()
+		onChange(value)
+	end)
+
+	return btn
+end
+
+local function CreateSettingsSizeInputRow(parent, order, label, defaultSX, defaultOX, defaultSY, defaultOY, onApply)
+	local row = Instance.new("Frame")
+	row.BackgroundTransparency = 1
+	row.Size = UDim2.new(1, 0, 0, 78)
+	row.LayoutOrder = order
+	row.Parent = parent
+
+	local lbl = Instance.new("TextLabel")
+	lbl.BorderSizePixel = 0
+	lbl.BackgroundTransparency = 1
+	lbl.Size = UDim2.new(1, 0, 0, 18)
+	lbl.Position = UDim2.new(0, 6, 0, 0)
+	lbl.Text = label
+	lbl.TextColor3 = Color3.fromRGB(210, 210, 210)
+	lbl.TextSize = 14
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+	lbl.Parent = row
+
+	local function MakeBox(defaultValue, placeholder, posX, posY)
+		local box = Instance.new("TextBox")
+		box.BorderSizePixel = 0
+		box.Size = UDim2.new(0, 108, 0, 26)
+		box.Position = UDim2.new(0, posX, 0, posY)
+		box.BackgroundColor3 = Color3.fromRGB(46,46,46)
+		box.BackgroundTransparency = 0.45
+		box.Text = tostring(defaultValue)
+		box.PlaceholderText = placeholder
+		box.TextColor3 = Color3.fromRGB(230,230,230)
+		box.TextSize = 13
+		box.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+		box.Parent = row
+
+		local boxCorner = Instance.new("UICorner")
+		boxCorner.CornerRadius = UDim.new(0,10)
+		boxCorner.Parent = box
+
+		local boxStroke = Instance.new("UIStroke")
+		boxStroke.Transparency = 0.93
+		boxStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		boxStroke.Color = Color3.fromRGB(255,255,255)
+		boxStroke.Parent = box
+
+		return box
+	end
+
+	local sxBox = MakeBox(defaultSX, "Scale X", 6, 22)
+	local oxBox = MakeBox(defaultOX, "Offset X", 120, 22)
+	local syBox = MakeBox(defaultSY, "Scale Y", 6, 52)
+	local oyBox = MakeBox(defaultOY, "Offset Y", 120, 52)
+
+	local function Submit()
+		local sx = tonumber(sxBox.Text) or defaultSX
+		local ox = tonumber(oxBox.Text) or defaultOX
+		local sy = tonumber(syBox.Text) or defaultSY
+		local oy = tonumber(oyBox.Text) or defaultOY
+		sxBox.Text = tostring(sx)
+		oxBox.Text = tostring(ox)
+		syBox.Text = tostring(sy)
+		oyBox.Text = tostring(oy)
+		onApply(sx, ox, sy, oy)
+	end
+
+	sxBox.FocusLost:Connect(Submit)
+	oxBox.FocusLost:Connect(Submit)
+	syBox.FocusLost:Connect(Submit)
+	oyBox.FocusLost:Connect(Submit)
+
+	return row
+end
+
+local function CreateSettingsButtonRow(parent, order, label, onClick)
+	local btn = Instance.new("TextButton")
+	btn.BorderSizePixel = 0
+	btn.AutoButtonColor = false
+	btn.Size = UDim2.new(1, 0, 0, 32)
+	btn.BackgroundColor3 = Color3.fromRGB(46,46,46)
+	btn.BackgroundTransparency = 0.45
+	btn.Text = label
+	btn.TextColor3 = Color3.fromRGB(230,230,230)
+	btn.TextSize = 14
+	btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+	btn.LayoutOrder = order
+	btn.Parent = parent
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0,15)
+	corner.Parent = btn
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Transparency = 0.93
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Color = Color3.fromRGB(255,255,255)
+	stroke.Parent = btn
+
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundTransparency = 0.2}):Play()
+	end)
+
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundTransparency = 0.45}):Play()
+	end)
+
+	btn.MouseButton1Click:Connect(onClick)
+	return btn
+end
+
+ResetUISettings = function()
+	ApplyCornerRadius(DefaultCornerRadius)
+	ApplyBgTransparency(DefaultBgTransparency)
+	ApplyIconButtonTransparency(DefaultIconButtonTransparency)
+	ApplyIconGridSize(DefaultIconGridSize)
+	ApplyMainUISize(DefaultMainUIScaleX, DefaultMainUIOffsetX, DefaultMainUIScaleY, DefaultMainUIOffsetY)
+	ApplyUIScale(DefaultUIScale)
+	ApplyHoverAnimations(DefaultHoverAnimations)
+
+	if BuildSettingsMenu then
+		BuildSettingsMenu()
+	end
+end
+
+function BuildSettingsMenu()
+	for _, child in ipairs(SettingsMenu:GetChildren()) do
+		if not (child:IsA("UIListLayout") or child:IsA("UIPadding") or child:IsA("UICorner") or child:IsA("UIStroke")) then
+			child:Destroy()
+		end
+	end
+
+	local order = 1
+	local totalHeight = 16
+
+	local function AddHeader(text)
+		local header = Instance.new("Frame")
+		header.BorderSizePixel = 0
+		header.BackgroundTransparency = 1
+		header.Size = UDim2.new(1, 0, 0, 24)
+		header.LayoutOrder = order
+		header.Parent = SettingsMenu
+
+		local img = Instance.new("ImageLabel")
+		img.Size = UDim2.new(0, 16, 0, 16)
+		img.Position = UDim2.new(0, 6, 0.5, 0)
+		img.AnchorPoint = Vector2.new(0, 0.5)
+		img.BackgroundTransparency = 1
+		img.Image = "rbxassetid://94345128715799"
+		img.ImageColor3 = Color3.fromRGB(200, 200, 200)
+		img.Parent = header
+
+		local headerLbl = Instance.new("TextLabel")
+		headerLbl.BorderSizePixel = 0
+		headerLbl.BackgroundTransparency = 1
+		headerLbl.Size = UDim2.new(1, -28, 1, 0)
+		headerLbl.Position = UDim2.new(0, 26, 0, 0)
+		headerLbl.Text = text
+		headerLbl.TextXAlignment = Enum.TextXAlignment.Left
+		headerLbl.TextColor3 = Color3.fromRGB(160, 160, 160)
+		headerLbl.TextSize = 14
+		headerLbl.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+		headerLbl.Parent = header
+
+		order = order + 1
+		totalHeight = totalHeight + 27
+	end
+
+	local function AddDivider()
+		local div = Instance.new("Frame")
+		div.BorderSizePixel = 0
+		div.Size = UDim2.new(1, -20, 0, 1)
+		div.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		div.BackgroundTransparency = 0.8
+		div.LayoutOrder = order
+		div.Parent = SettingsMenu
+		order = order + 1
+		totalHeight = totalHeight + 4
+	end
+
+	AddHeader("Settings")
+
+	CreateSettingsSliderRow(SettingsMenu, order, "Corner Radius", 0, 50, MUICorner.CornerRadius.Offset, 0, "px", function(v)
+		ApplyCornerRadius(v)
+	end)
+	order = order + 1
+	totalHeight = totalHeight + 52
+
+	CreateSettingsSliderRow(SettingsMenu, order, "BG Transparency", 0, 100, MainUI.BackgroundTransparency * 100, 0, "%", function(v)
+		ApplyBgTransparency(v / 100)
+	end)
+	order = order + 1
+	totalHeight = totalHeight + 52
+
+	CreateSettingsSliderRow(SettingsMenu, order, "Icon Button Transparency", 0, 100, (IconList:GetAttribute("IconButtonTransparency") or DefaultIconButtonTransparency) * 100, 0, "%", function(v)
+		ApplyIconButtonTransparency(v / 100)
+	end)
+	order = order + 1
+	totalHeight = totalHeight + 52
+
+	CreateSettingsSliderRow(SettingsMenu, order, "Icon Grid", 40, 90, GridCell, 0, "px", function(v)
+		ApplyIconGridSize(v)
+	end)
+	order = order + 1
+	totalHeight = totalHeight + 52
+
+	CreateSettingsSizeInputRow(SettingsMenu, order, "MainUI Size (Scale X, Offset X, Scale Y, Offset Y)", MainUI.Size.X.Scale, MainUI.Size.X.Offset, MainUI.Size.Y.Scale, MainUI.Size.Y.Offset, function(sx, ox, sy, oy)
+		ApplyMainUISize(sx, ox, sy, oy)
+	end)
+	order = order + 1
+	totalHeight = totalHeight + 82
+
+	CreateSettingsSliderRow(SettingsMenu, order, "MainUI UIScale", 0.7, 1.3, UiScale.Scale, 2, "x", function(v)
+		ApplyUIScale(v)
+	end)
+	order = order + 1
+	totalHeight = totalHeight + 52
+
+	CreateSettingsToggleRow(SettingsMenu, order, "Hover Animations", HoverAnimations, function(v)
+		ApplyHoverAnimations(v)
+	end)
+	order = order + 1
+	totalHeight = totalHeight + 27
+
+	AddDivider()
+
+	CreateSettingsButtonRow(SettingsMenu, order, "Reset to Default", function()
+		ResetUISettings()
+	end)
+	order = order + 1
+	totalHeight = totalHeight + 34
+
+	local displayHeight = math.min(totalHeight, 330)
+	SettingsMenu.Size = UDim2.new(0, 245, 0, displayHeight)
+	SettingsMenu.Position = UDim2.new(0.5, 0, 1, displayHeight + 2)
 end
 
 local function BuildPlatformMenu()
@@ -1214,8 +2247,8 @@ local function BuildPlatformMenu()
 	Container.Position = UDim2.new(0.5, 0, 1, totalHeight + 2)
 end
 
-local function BuildSettingsMenu()
-	for _, child in ipairs(SettingsMenu:GetChildren()) do
+local function BuildFilterMenu()
+	for _, child in ipairs(FilterMenu:GetChildren()) do
 		if child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel") then
 			child:Destroy()
 		end
@@ -1223,20 +2256,20 @@ local function BuildSettingsMenu()
 
 	local items = {
 		{Type = "Label", Text = "Copy Mode", Icon = "rbxassetid://113618379616952"},
-		{Type = "Button", Text = "ID", Action = function() SetCopyMode("ID") BuildSettingsMenu() end, Checked = (CurrentCopyMode == "ID")},
-		{Type = "Button", Text = "rbxassetid://ID", Action = function() SetCopyMode("rbxassetid://ID") BuildSettingsMenu() end, Checked = (CurrentCopyMode == "rbxassetid://ID")},
-		{Type = "Button", Text = "Copy on Press", Action = function() ToggleCopyOnPress() BuildSettingsMenu() end, Checked = CopyOnPress},
+		{Type = "Button", Text = "ID", Action = function() SetCopyMode("ID") BuildFilterMenu() end, Checked = (CurrentCopyMode == "ID")},
+		{Type = "Button", Text = "rbxassetid://ID", Action = function() SetCopyMode("rbxassetid://ID") BuildFilterMenu() end, Checked = (CurrentCopyMode == "rbxassetid://ID")},
+		{Type = "Button", Text = "Copy on Press", Action = function() ToggleCopyOnPress() BuildFilterMenu() end, Checked = CopyOnPress},
 		{Type = "Divider"},
 		{Type = "Label", Text = "Filter", Icon = "rbxassetid://96385120752336"},
-		{Type = "Button", Text = "All", Action = function() ToggleFilter("All") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["All"] == true)},
-		{Type = "Button", Text = "Fill/Bold", Action = function() ToggleFilter("Fill/Bold") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["Fill/Bold"] == true)},
-		{Type = "Button", Text = "Square", Action = function() ToggleFilter("Square") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["Square"] == true)},
-		{Type = "Button", Text = "Circle", Action = function() ToggleFilter("Circle") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["Circle"] == true)},
-		{Type = "Button", Text = "Triangle", Action = function() ToggleFilter("Triangle") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildSettingsMenu() end, Checked = (CurrentFilters["Triangle"] == true)},
+		{Type = "Button", Text = "All", Action = function() ToggleFilter("All") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildFilterMenu() end, Checked = (CurrentFilters["All"] == true)},
+		{Type = "Button", Text = "Fill/Bold", Action = function() ToggleFilter("Fill/Bold") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildFilterMenu() end, Checked = (CurrentFilters["Fill/Bold"] == true)},
+		{Type = "Button", Text = "Square", Action = function() ToggleFilter("Square") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildFilterMenu() end, Checked = (CurrentFilters["Square"] == true)},
+		{Type = "Button", Text = "Circle", Action = function() ToggleFilter("Circle") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildFilterMenu() end, Checked = (CurrentFilters["Circle"] == true)},
+		{Type = "Button", Text = "Triangle", Action = function() ToggleFilter("Triangle") ProcessFiltersAndSort() BuildAlphabetSidebar() BuildFilterMenu() end, Checked = (CurrentFilters["Triangle"] == true)},
 		{Type = "Divider"},
 		{Type = "Label", Text = "Sort", Icon = "rbxassetid://85780258549577"},
-		{Type = "Button", Text = "A-Z", Action = function() SetSort("A-Z") ProcessFiltersAndSort() BuildSettingsMenu() end, Checked = (CurrentSort == "A-Z")},
-		{Type = "Button", Text = "Z-A", Action = function() SetSort("Z-A") ProcessFiltersAndSort() BuildSettingsMenu() end, Checked = (CurrentSort == "Z-A")}
+		{Type = "Button", Text = "A-Z", Action = function() SetSort("A-Z") ProcessFiltersAndSort() BuildFilterMenu() end, Checked = (CurrentSort == "A-Z")},
+		{Type = "Button", Text = "Z-A", Action = function() SetSort("Z-A") ProcessFiltersAndSort() BuildFilterMenu() end, Checked = (CurrentSort == "Z-A")}
 	}
 
 	local totalHeight = 12
@@ -1248,7 +2281,7 @@ local function BuildSettingsMenu()
 			container.Size = UDim2.new(0, 140, 0, 24)
 			container.BackgroundTransparency = 1
 			container.LayoutOrder = layoutOrder
-			container.Parent = SettingsMenu
+			container.Parent = FilterMenu
 
 			local img = Instance.new("ImageLabel")
 			img.Size = UDim2.new(0, 16, 0, 16)
@@ -1281,7 +2314,7 @@ local function BuildSettingsMenu()
 			btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", item.Checked and Enum.FontWeight.Bold or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
 			btn.TextXAlignment = Enum.TextXAlignment.Left
 			btn.LayoutOrder = layoutOrder
-			btn.Parent = SettingsMenu
+			btn.Parent = FilterMenu
 
 			local chk = Instance.new("ImageLabel")
 			chk.Size = UDim2.new(1.03, 0, 0, 18)
@@ -1311,19 +2344,32 @@ local function BuildSettingsMenu()
 			div.BackgroundTransparency = 0.8
 			div.BorderSizePixel = 0
 			div.LayoutOrder = layoutOrder
-			div.Parent = SettingsMenu
+			div.Parent = FilterMenu
 			totalHeight = totalHeight + 4
 		end
 		layoutOrder = layoutOrder + 1
 	end
 
-	local displayHeight = math.min(totalHeight, MAX_SETTINGS_HEIGHT)
-	SettingsMenu.Size = UDim2.new(0, 150, 0, displayHeight)
-	SettingsMenu.Position = UDim2.new(0.5, 0, 1, displayHeight + 2)
+	local displayHeight = math.min(totalHeight, 230)
+	FilterMenu.Size = UDim2.new(0, 150, 0, displayHeight)
+	FilterMenu.Position = UDim2.new(0.5, 0, 1, displayHeight + 2)
 end
 
+local searchToken = 0
 SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-	ProcessFiltersAndSort()
+	ClearBox.Visible = SearchBox.Text ~= ""
+	searchToken = searchToken + 1
+	local myToken = searchToken
+	task.delay(SEARCH_DEBOUNCE, function()
+		if myToken == searchToken then
+			ProcessFiltersAndSort()
+		end
+	end)
+end)
+
+ClearBox.MouseButton1Click:Connect(function()
+	SearchBox.Text = ""
+	SearchBox:CaptureFocus()
 end)
 
 local isFocused = false
@@ -1352,15 +2398,30 @@ end)
 
 IconPicker.MouseButton1Click:Connect(function()
 	Container.Visible = not Container.Visible
+	FilterMenu.Visible = false
+	SettingsMenu.Visible = false
+end)
+
+FilterBtn.MouseButton1Click:Connect(function()
+	FilterMenu.Visible = not FilterMenu.Visible
+	Container.Visible = false
 	SettingsMenu.Visible = false
 end)
 
 SettingsBtn.MouseButton1Click:Connect(function()
 	SettingsMenu.Visible = not SettingsMenu.Visible
 	Container.Visible = false
+	FilterMenu.Visible = false
 end)
 
-ClosePView.MouseButton1Click:Connect(function() PViewFrame.Visible = false end)
+ClosePView.MouseButton1Click:Connect(function()
+	PViewFrame.Visible = false
+	PreviewMorphToken = PreviewMorphToken + 1
+	PreviewIcon.ImageTransparency = 0
+	PreviewIcon.Rotation = PreviewIconBaseRotation
+	PreviewIcon.Size = PreviewIconBaseSize
+	PreviewIconScale.Scale = 1
+end)
 
 CopyID.MouseButton1Click:Connect(function()
 	local id = PreviewIcon.Image:match("%d+$")
@@ -1408,6 +2469,8 @@ RefreshBtn.MouseButton1Click:Connect(function()
 end)
 
 BuildPlatformMenu()
+BuildFilterMenu()
+LoadSettings()
 BuildSettingsMenu()
 BuildAlphabetSidebar()
 LoadIcons("Lucide")
