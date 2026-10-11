@@ -22,7 +22,7 @@
 ---
 
 ## IconFinder Preview
-![Preview](./Preview.png)
+![Preview](https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/Preview.png)
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Orvez83/IconFinder/refs/heads/main/IconFinder.lua"))()
